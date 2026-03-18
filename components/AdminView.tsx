@@ -217,8 +217,8 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
             </div>
             <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Estado IA</span>
-              <div className="text-4xl font-black text-emerald-500">{apiKey ? 'ON' : 'OFF'}</div>
-              <p className="text-xs text-slate-500 mt-2">Gemini 1.5 Flash</p>
+              <div className="text-4xl font-black text-emerald-500">ON</div>
+              <p className="text-xs text-slate-500 mt-2">Claude Sonnet (Anthropic)</p>
             </div>
             <div className="bg-white p-8 rounded-3xl border border-slate-200 shadow-sm">
               <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Backup Cloud</span>
@@ -473,33 +473,44 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
                 <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
               </div>
               <div>
-                <h2 className="text-2xl font-black text-slate-900">Configuración de Inteligencia Artificial</h2>
-                <p className="text-slate-500 font-medium">Google Gemini — Operational Refinement</p>
+                <h2 className="text-2xl font-black text-slate-900">Inteligencia Artificial</h2>
+                <p className="text-slate-500 font-medium">Claude Sonnet — Anthropic AI</p>
               </div>
             </div>
 
             <div className="space-y-6">
-              <div>
-                <label className="block text-xs font-black uppercase text-slate-400 mb-3 tracking-widest">API KEY SECRETA (GEMINI 1.5 PRO)</label>
-                <div className="relative">
-                  <input
-                    type="password"
-                    placeholder="Introduce tu clave secreta de Google AI"
-                    className="w-full px-6 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-blue-500/10 outline-none text-slate-900 font-mono text-lg transition-all"
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                  />
+              {/* Status badge */}
+              <div className="flex items-center gap-3 p-5 bg-emerald-50 border border-emerald-200 rounded-2xl">
+                <div className="w-3 h-3 rounded-full bg-emerald-500 animate-pulse"></div>
+                <div>
+                  <p className="text-sm font-black text-emerald-800 uppercase tracking-widest">IA Activa — Claude Sonnet</p>
+                  <p className="text-xs text-emerald-600 mt-0.5">Conectado vía ANTHROPIC_API_KEY (variable de entorno)</p>
                 </div>
               </div>
-              <button
-                onClick={handleSaveApiKey}
-                className="w-full bg-blue-600 text-white font-black py-5 rounded-2xl hover:bg-blue-700 transition-all shadow-xl shadow-blue-600/20 uppercase tracking-widest"
-              >
-                Actualizar y Probar Conexión
-              </button>
+
+              {/* Capabilities */}
+              <div className="space-y-3">
+                <p className="text-xs font-black uppercase text-slate-400 tracking-widest">Capacidades activas</p>
+                <div className="grid grid-cols-1 gap-3">
+                  {[
+                    { icon: '🧠', title: 'Análisis de agenda', desc: 'Detecta conflictos y huecos en el tablero diario' },
+                    { icon: '💬', title: 'Bot de Telegram', desc: 'Agenda citas por lenguaje natural en español' },
+                    { icon: '📅', title: 'Invitaciones automáticas', desc: 'Envía invitaciones a Google Calendar del profesional' },
+                  ].map((cap) => (
+                    <div key={cap.title} className="flex items-start gap-3 p-4 bg-slate-50 rounded-xl border border-slate-100">
+                      <span className="text-xl">{cap.icon}</span>
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">{cap.title}</p>
+                        <p className="text-xs text-slate-500">{cap.desc}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
               <div className="p-6 bg-blue-50/50 rounded-2xl border border-blue-100">
                 <p className="text-sm text-blue-800 font-medium leading-relaxed">
-                  Esta clave permite que la IA analice los conflictos entre salas y doctores para darte recomendaciones inteligentes en el Modo TV.
+                  La API key de Anthropic está configurada como variable de entorno segura en Vercel. No es necesario ingresarla manualmente.
                 </p>
               </div>
             </div>
