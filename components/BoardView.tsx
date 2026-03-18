@@ -4,6 +4,7 @@ import { AuthSession, CalendarConfig, CalendarEvent, CalendarType, AppRoute } fr
 import { storage } from '../lib/storage';
 import { fetchCalendarBoard } from '../lib/google';
 import { ICONS, TIMEZONE } from '../constants';
+import AppointmentModal from './AppointmentModal';
 
 interface BoardViewProps {
   session: AuthSession | null;
@@ -18,6 +19,10 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
   const [search, setSearch] = useState('');
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [hasError, setHasError] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+
+  const isAdmin = session?.role === 'admin';
 
   const loadData = async (dateToLoad: string = selectedDate) => {
     setLoading(true);
@@ -36,19 +41,11 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
   };
 
   useEffect(() => {
-    // Suscripción Realtime
     const subscription = storage.subscribeToCalendarChanges(() => {
-      console.log("Realtime: Refreshing Board View");
       loadData();
     });
-
     loadData();
-
-    // Configurar refresco periódico cada 60 segundos
-    const intervalId = setInterval(() => {
-      loadData();
-    }, 60000);
-
+    const intervalId = setInterval(() => { loadData(); }, 60000);
     return () => {
       subscription.unsubscribe();
       clearInterval(intervalId);
@@ -74,18 +71,51 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+
+      {/* MODAL NUEVA / EDITAR CITA */}
+      {showModal && (
+        <AppointmentModal
+          calendars={calendars}
+          onClose={() => { setShowModal(false); setEditingEvent(null); }}
+          onSaved={() => loadData()}
+          editEvent={editingEvent ? {
+            id: editingEvent.id,
+            calendarId: editingEvent.calendarId,
+            title: editingEvent.title,
+            start: editingEvent.start,
+            end: editingEvent.end,
+            location: editingEvent.location,
+            description: editingEvent.description,
+          } : null}
+        />
+      )}
+
       <header className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-8 px-2">
         <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-8 w-full sm:w-auto">
           <img src="/logo.png" alt="440 Clinic Logo" className="h-20 sm:h-24 w-auto object-contain" />
           <div className="hidden sm:block h-12 w-px bg-slate-200"></div>
           <div className="text-center sm:text-left">
             <h1 className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight uppercase">Agenda Diaria</h1>
-            <p className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-[0.2em] mt-1 italic">440 Clinic Operational Center</p>
+            <p className="text-[10px] sm:text-xs text-slate-400 font-bold uppercase tracking-[0.2em] mt-1 italic">
+              440 Clinic — {isAdmin ? 'Admin' : 'Colaborador (Solo lectura)'}
+            </p>
           </div>
         </div>
 
         <div className="flex items-center justify-center gap-3 w-full sm:w-auto">
-          {session?.role === 'admin' && (
+          {/* Botón Nueva Cita — solo admin */}
+          {isAdmin && (
+            <button
+              onClick={() => { setEditingEvent(null); setShowModal(true); }}
+              className="flex-1 sm:flex-initial px-6 py-3 bg-blue-600 text-white rounded-2xl hover:bg-blue-700 transition-all text-[11px] font-black uppercase tracking-widest shadow-xl shadow-blue-600/20 flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4" />
+              </svg>
+              Nueva Cita
+            </button>
+          )}
+          {isAdmin && (
             <button
               onClick={() => window.location.hash = AppRoute.ADMIN}
               className="flex-1 sm:flex-initial px-6 py-3 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-all text-[11px] font-black uppercase tracking-widest shadow-sm text-slate-600"
@@ -113,8 +143,7 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
               <button
                 key={type}
                 onClick={() => setSelectedType(type)}
-                className={`flex-1 px-6 sm:px-8 py-3 rounded-xl text-xs sm:text-sm font-black uppercase whitespace-nowrap transition-all ${selectedType === type ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-600'
-                  }`}
+                className={`flex-1 px-6 sm:px-8 py-3 rounded-xl text-xs sm:text-sm font-black uppercase whitespace-nowrap transition-all ${selectedType === type ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
               >
                 {type === 'resource' ? 'Salas' : type === 'professional' ? 'Doctores' : type === 'general' ? 'Otros' : 'Todo'}
               </button>
@@ -140,6 +169,18 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
           </div>
         </div>
       </div>
+
+      {/* Banner read-only para colaboradores */}
+      {!isAdmin && (
+        <div className="mb-6 p-4 bg-blue-50 border border-blue-100 rounded-2xl flex items-center gap-3">
+          <svg className="w-5 h-5 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-sm text-blue-700 font-medium">
+            Modo colaborador — Vista de solo lectura. Para agendar citas usa el bot de Telegram de 440 Clinic.
+          </p>
+        </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-20">
@@ -167,7 +208,22 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
                     <p className="text-[9px] text-slate-400 uppercase tracking-widest font-black">{cal.type}</p>
                   </div>
                 </div>
-                <div className="flex flex-col items-end gap-1">
+                <div className="flex items-center gap-2">
+                  {/* Botón añadir en tarjeta — solo admin */}
+                  {isAdmin && (
+                    <button
+                      onClick={() => {
+                        setEditingEvent(null);
+                        setShowModal(true);
+                      }}
+                      title="Añadir cita a este calendario"
+                      className="p-1.5 text-slate-300 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-all"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 4v16m8-8H4" />
+                      </svg>
+                    </button>
+                  )}
                   <span className={`${hasError ? 'text-red-500' : 'text-emerald-500'} text-[9px] font-black uppercase tracking-tighter flex items-center gap-1`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${hasError ? 'bg-red-500' : 'bg-emerald-500'}`}></span>
                     {hasError ? 'ERROR' : 'SINC'}
@@ -178,7 +234,16 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
               <div className="p-4 space-y-3 flex-grow min-h-[120px]">
                 {groupedEvents[cal.id]?.length > 0 ? (
                   groupedEvents[cal.id].map(event => (
-                    <div key={event.id} className="group p-3 rounded-xl border border-slate-100 hover:bg-slate-50 transition-all">
+                    <div
+                      key={event.id}
+                      onClick={() => {
+                        if (isAdmin) {
+                          setEditingEvent(event);
+                          setShowModal(true);
+                        }
+                      }}
+                      className={`group p-3 rounded-xl border border-slate-100 transition-all ${isAdmin ? 'hover:bg-blue-50 hover:border-blue-200 cursor-pointer' : ''}`}
+                    >
                       <div className="flex justify-between items-start mb-1">
                         <span className="text-xs font-bold text-slate-900">{event.title}</span>
                         <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded font-mono text-slate-500">
@@ -186,16 +251,24 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
                         </span>
                       </div>
                       {cal.showDetails && (
-                        <div className="text-[10px] text-slate-500 flex flex-col">
+                        <div className="text-[10px] text-slate-500 flex flex-col gap-0.5">
+                          {event.booker && <span className="font-bold text-blue-500">👨‍⚕️ {event.booker}</span>}
                           {event.location && <span className="truncate">📍 {event.location}</span>}
                         </div>
+                      )}
+                      {isAdmin && (
+                        <p className="text-[9px] text-slate-300 mt-1 opacity-0 group-hover:opacity-100 transition-opacity">Clic para editar</p>
                       )}
                     </div>
                   ))
                 ) : (
-                  <div className="flex flex-col items-center justify-center py-6 text-slate-300">
+                  <div
+                    onClick={() => isAdmin && setShowModal(true)}
+                    className={`flex flex-col items-center justify-center py-6 text-slate-300 rounded-xl border-2 border-dashed border-transparent transition-all ${isAdmin ? 'hover:border-blue-200 hover:bg-blue-50/30 cursor-pointer' : ''}`}
+                  >
                     <svg className="w-8 h-8 mb-2 opacity-20" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
                     <span className="text-sm font-medium">Disponible</span>
+                    {isAdmin && <span className="text-[10px] mt-1 opacity-50">+ Añadir cita</span>}
                   </div>
                 )}
               </div>

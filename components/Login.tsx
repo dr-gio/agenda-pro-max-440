@@ -15,7 +15,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setError('');
 
     if (username === 'admin' && password === '440clinic2026') {
-      onLogin('440 Clinic', 'admin');
+      onLogin('440 Clinic Admin', 'admin');
+    } else if (username === 'colaborador' && password === '440ver2026') {
+      onLogin('Colaborador 440', 'viewer');
     } else {
       setError('Credenciales incorrectas');
     }
