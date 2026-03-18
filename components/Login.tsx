@@ -14,12 +14,7 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     e.preventDefault();
     setError('');
 
-    // Credenciales leídas desde variables de entorno (VITE_ADMIN_USER / VITE_ADMIN_PASSWORD)
-    // En Vercel: Settings → Environment Variables
-    const adminUser = (import.meta as any).env.VITE_ADMIN_USER || 'admin';
-    const adminPassword = (import.meta as any).env.VITE_ADMIN_PASSWORD || 'admin440';
-
-    if (username === adminUser && password === adminPassword) {
+    if (username === 'admin' && password === '440clinic2026') {
       onLogin('440 Clinic', 'admin');
     } else {
       setError('Credenciales incorrectas');
