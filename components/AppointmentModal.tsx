@@ -19,11 +19,15 @@ interface AppointmentModalProps {
 const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose, onSaved, editEvent }) => {
   const today = new Date().toISOString().split('T')[0];
 
+  // Separar salas/recursos de profesionales
+  const resources  = calendars.filter(c => c.active && (c.type === 'resource' || c.type === 'general'));
+  const professionals = calendars.filter(c => c.active && (c.type === 'professional' || c.type === 'aesthetic'));
+
   const [form, setForm] = useState({
-    calendarId: calendars[0]?.googleCalendarId || 'primary',
+    resourceCalendarId: resources[0]?.id || '',
+    professionalId: '',          // ID interno del profesional seleccionado
     patient: '',
     procedure: '',
-    doctor: '',
     date: today,
     startTime: '09:00',
     endTime: '10:00',
@@ -38,32 +42,31 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
       const start = new Date(editEvent.start);
       const end = new Date(editEvent.end);
       const pad = (n: number) => String(n).padStart(2, '0');
-
-      // Intentar extraer campos del description
       const desc = editEvent.description || '';
       const getField = (label: string) => {
         const match = desc.match(new RegExp(`${label}: (.+)`));
         return match ? match[1].trim() : '';
       };
-
-      // Extraer paciente y procedimiento del título "Paciente — Procedimiento"
       const titleParts = editEvent.title.split(' — ');
 
-      setForm({
-        calendarId: editEvent.calendarId || calendars[0]?.googleCalendarId || 'primary',
+      setForm(f => ({
+        ...f,
+        resourceCalendarId: editEvent.calendarId || resources[0]?.id || '',
         patient: getField('Paciente') || titleParts[0] || '',
         procedure: getField('Procedimiento') || titleParts[1] || '',
-        doctor: getField('Médico') || '',
         date: editEvent.start.split('T')[0],
         startTime: `${pad(start.getHours())}:${pad(start.getMinutes())}`,
         endTime: `${pad(end.getHours())}:${pad(end.getMinutes())}`,
         location: editEvent.location || '',
         notes: getField('Notas') || '',
-      });
+      }));
     }
   }, [editEvent]);
 
-  // Auto-calcular hora fin (1 hora después)
+  // Profesional seleccionado (objeto completo)
+  const selectedProfessional = professionals.find(p => p.id === form.professionalId) || null;
+
+  // Auto hora fin (+1h)
   const handleStartTimeChange = (val: string) => {
     const [h, m] = val.split(':').map(Number);
     const endH = String(h + 1 > 23 ? 23 : h + 1).padStart(2, '0');
@@ -76,9 +79,13 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
     setLoading(true);
 
     try {
-      // Buscar el googleCalendarId del calendario seleccionado
-      const selectedCal = calendars.find(c => c.id === form.calendarId);
-      const googleCalId = selectedCal?.googleCalendarId || 'primary';
+      // Obtener googleCalendarId del recurso seleccionado
+      const resourceCal = calendars.find(c => c.id === form.resourceCalendarId);
+      const resourceCalendarId = resourceCal?.googleCalendarId || 'primary';
+
+      // Email del profesional (su googleCalendarId es su email en Google)
+      const professionalEmail = selectedProfessional?.googleCalendarId || '';
+      const doctorName = selectedProfessional?.label || '';
 
       const url = editEvent ? `/api/events?id=${editEvent.id}` : '/api/events';
       const method = editEvent ? 'PATCH' : 'POST';
@@ -86,7 +93,18 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
       const res = await fetch(url, {
         method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...form, calendarId: googleCalId }),
+        body: JSON.stringify({
+          resourceCalendarId,
+          professionalEmail: professionalEmail || undefined,
+          patient: form.patient,
+          procedure: form.procedure,
+          doctor: doctorName,
+          date: form.date,
+          startTime: form.startTime,
+          endTime: form.endTime,
+          location: form.location || (resourceCal?.label || ''),
+          notes: form.notes,
+        }),
       });
 
       if (!res.ok) {
@@ -105,12 +123,12 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
 
   const handleDelete = async () => {
     if (!editEvent) return;
-    if (!confirm('¿Eliminar esta cita definitivamente?')) return;
+    if (!confirm('¿Eliminar esta cita? Se notificará al profesional si estaba invitado.')) return;
     setLoading(true);
     try {
-      const selectedCal = calendars.find(c => c.id === editEvent.calendarId);
-      const googleCalId = selectedCal?.googleCalendarId || 'primary';
-      const res = await fetch(`/api/events?id=${editEvent.id}&calendarId=${googleCalId}`, { method: 'DELETE' });
+      const resourceCal = calendars.find(c => c.id === editEvent.calendarId);
+      const resourceCalendarId = resourceCal?.googleCalendarId || 'primary';
+      const res = await fetch(`/api/events?id=${editEvent.id}&resourceCalendarId=${resourceCalendarId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Error al eliminar');
       onSaved();
       onClose();
@@ -143,21 +161,60 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
           </button>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-7 space-y-4">
+        <form onSubmit={handleSubmit} className="p-7 space-y-5">
 
-          {/* Calendario destino */}
-          <div>
-            <label className={labelClass}>Calendario / Sala</label>
-            <select
-              className={inputClass + " cursor-pointer"}
-              value={form.calendarId}
-              onChange={e => setForm(f => ({ ...f, calendarId: e.target.value }))}
-            >
-              {calendars.filter(c => c.active).map(c => (
-                <option key={c.id} value={c.id}>{c.label}</option>
-              ))}
-            </select>
+          {/* SALA / RECURSO + PROFESIONAL — la parte clave */}
+          <div className="p-4 bg-blue-50/60 border border-blue-100 rounded-2xl space-y-4">
+            <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Asignación</p>
+
+            {/* Sala */}
+            <div>
+              <label className={labelClass}>
+                <span className="text-blue-600">Sala / Recurso</span>
+              </label>
+              <select
+                className={inputClass + " cursor-pointer bg-white border-blue-200"}
+                value={form.resourceCalendarId}
+                onChange={e => setForm(f => ({ ...f, resourceCalendarId: e.target.value }))}
+              >
+                <option value="">— Sin sala asignada —</option>
+                {resources.map(c => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Profesional */}
+            <div>
+              <label className={labelClass}>
+                <span className="text-purple-600">Profesional / Médico</span>
+                {selectedProfessional?.googleCalendarId && (
+                  <span className="ml-2 text-emerald-500 normal-case tracking-normal">✓ Recibirá invitación</span>
+                )}
+              </label>
+              <select
+                className={inputClass + " cursor-pointer bg-white border-purple-200"}
+                value={form.professionalId}
+                onChange={e => setForm(f => ({ ...f, professionalId: e.target.value }))}
+              >
+                <option value="">— Sin profesional asignado —</option>
+                {professionals.map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.label}{c.googleCalendarId && c.googleCalendarId !== 'primary' ? ' ✓' : ' (sin email)'}
+                  </option>
+                ))}
+              </select>
+              {selectedProfessional && selectedProfessional.googleCalendarId && selectedProfessional.googleCalendarId !== 'primary' && (
+                <p className="text-[10px] text-purple-500 mt-1 font-medium">
+                  📧 Se enviará invitación a: {selectedProfessional.googleCalendarId}
+                </p>
+              )}
+              {selectedProfessional && (!selectedProfessional.googleCalendarId || selectedProfessional.googleCalendarId === 'primary') && (
+                <p className="text-[10px] text-amber-500 mt-1 font-medium">
+                  ⚠️ Este profesional no tiene email configurado. Ve a Configuración → Calendarios para añadirlo.
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Paciente */}
@@ -181,18 +238,6 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
               className={inputClass}
               value={form.procedure}
               onChange={e => setForm(f => ({ ...f, procedure: e.target.value }))}
-            />
-          </div>
-
-          {/* Médico */}
-          <div>
-            <label className={labelClass}>Médico Responsable</label>
-            <input
-              type="text"
-              placeholder="Nombre del médico o especialista"
-              className={inputClass}
-              value={form.doctor}
-              onChange={e => setForm(f => ({ ...f, doctor: e.target.value }))}
             />
           </div>
 
@@ -230,18 +275,6 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
             </div>
           </div>
 
-          {/* Ubicación */}
-          <div>
-            <label className={labelClass}>Ubicación / Sala (opcional)</label>
-            <input
-              type="text"
-              placeholder="Ej: Consultorio 1, Sala de Procedimientos..."
-              className={inputClass}
-              value={form.location}
-              onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-            />
-          </div>
-
           {/* Notas */}
           <div>
             <label className={labelClass}>Notas (opcional)</label>
@@ -252,6 +285,22 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
               onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
             />
           </div>
+
+          {/* Resumen de lo que se va a crear */}
+          {(form.resourceCalendarId || form.professionalId) && (
+            <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-[11px] text-slate-500 space-y-1">
+              {form.resourceCalendarId && (
+                <p>🏥 <b>Sala:</b> {resources.find(r => r.id === form.resourceCalendarId)?.label || '—'}</p>
+              )}
+              {form.professionalId && (
+                <p>👨‍⚕️ <b>Profesional:</b> {selectedProfessional?.label || '—'}
+                  {selectedProfessional?.googleCalendarId && selectedProfessional.googleCalendarId !== 'primary'
+                    ? ' — recibirá invitación por email'
+                    : ' — sin invitación (email no configurado)'}
+                </p>
+              )}
+            </div>
+          )}
 
           {error && (
             <div className="p-3 bg-red-50 border border-red-100 rounded-xl text-sm text-red-600 font-medium">
