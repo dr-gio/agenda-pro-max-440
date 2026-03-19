@@ -50,9 +50,12 @@ function buildEventResource({
     notes         ? `Notas: ${notes}`                 : null,
   ].filter(Boolean).join('\n');
 
-  // Attendees: profesional + paciente + equipo adicional (si tienen email)
+  // Attendees: profesional + paciente + equipo adicional (si tienen email personal)
+  // Los @group.calendar.google.com son IDs de calendario, NO emails — no se pueden invitar
+  const isPersonalEmail = (e) => e && !e.includes('@group.calendar.google.com') && !e.includes('@resource.calendar.google.com');
+
   const attendees = [];
-  if (professionalEmail) {
+  if (isPersonalEmail(professionalEmail)) {
     attendees.push({ email: professionalEmail, displayName: doctor || professionalEmail });
   }
   if (patientEmail) {
