@@ -1,6 +1,7 @@
 /**
  * /api/telegram.js — Bot de Telegram con memoria conversacional para 440 Clinic
  * Usa Claude con historial de conversación por chat_id guardado en Supabase.
+ * v2: dual-write (profesional + sala), personalEmail, lee de calendar_configs
  */
 
 import Anthropic from '@anthropic-ai/sdk';
@@ -59,7 +60,6 @@ async function loadHistory(supabase, chatId) {
 }
 
 async function saveHistory(supabase, chatId, messages) {
-  // Guardar solo los últimos 20 mensajes para no acumular demasiado
   const trimmed = messages.slice(-20);
   try {
     await supabase
@@ -74,9 +74,8 @@ async function clearHistory(supabase, chatId) {
   } catch {}
 }
 
-// ─── Autenticación del staff via PIN ─────────────────────────────────────────
+// ─── Autenticacion del staff via PIN ─────────────────────────────────────────
 
-/** Busca al staff vinculado a este chat_id */
 async function getStaffByChatId(supabase, chatId) {
   try {
     const { data } = await supabase
@@ -89,9 +88,7 @@ async function getStaffByChatId(supabase, chatId) {
   } catch { return null; }
 }
 
-/** Intenta verificar "Nombre PIN" y vincula el chat_id al staff */
 async function tryLinkStaff(supabase, chatId, text) {
-  // Acepta formato: "Katherine 1234" o "katherine 1234"
   const match = text.trim().match(/^(\S+)\s+(\d{4,8})$/);
   if (!match) return null;
   const [, nombre, pin] = match;
@@ -103,7 +100,6 @@ async function tryLinkStaff(supabase, chatId, text) {
     .eq('activo', true)
     .single();
   if (!data) return null;
-  // Vincular
   await supabase
     .from('staff_users')
     .update({ telegram_chat_id: String(chatId), updated_at: new Date().toISOString() })
@@ -113,19 +109,25 @@ async function tryLinkStaff(supabase, chatId, text) {
 
 // ─── Google Calendar ──────────────────────────────────────────────────────────
 
+/** Lee calendarios desde calendar_configs (misma tabla que la app principal) */
 async function getCalendarsFromSupabase(supabase) {
   try {
     const { data } = await supabase
-      .from('app_settings')
-      .select('value')
-      .eq('key', 'calendars')
+      .from('calendar_configs')
+      .select('calendars')
+      .eq('id', 'default')
       .single();
-    return data?.value || [];
+    return data?.calendars || [];
   } catch { return []; }
 }
 
-function buildEvent({ patient, patientEmail, procedure, doctor, date, startTime, endTime, location, notes, agendadoPor }) {
-  const title = procedure && patient ? `${procedure} – ${patient}` : patient || procedure || 'Cita Clínica';
+/** Filtra solo emails personales (no IDs de grupo de Google) */
+function isPersonalEmail(e) {
+  return e && !e.includes('@group.calendar.google.com') && !e.includes('@resource.calendar.google.com');
+}
+
+function buildEvent({ patient, patientEmail, procedure, doctor, professionalEmail, date, startTime, endTime, location, notes, agendadoPor }) {
+  const title = procedure && patient ? `${procedure} - ${patient}` : patient || procedure || 'Cita Clinica';
   const start = `${date}T${startTime || '09:00'}:00`;
   const end   = (() => {
     if (endTime) return `${date}T${endTime}:00`;
@@ -134,18 +136,22 @@ function buildEvent({ patient, patientEmail, procedure, doctor, date, startTime,
   })();
 
   const desc = [
-    patient      && `Paciente: ${patient}`,
-    patientEmail && `Email: ${patientEmail}`,
-    doctor       && `Médico: ${doctor}`,
-    procedure    && `Procedimiento: ${procedure}`,
-    notes        && `Notas: ${notes}`,
-    agendadoPor && `Agendado por: @${agendadoPor} (Telegram)`,
-    '📱 Agendado via Bot Telegram — 440 Clinic',
+    patient          && `Paciente: ${patient}`,
+    patientEmail     && `Email: ${patientEmail}`,
+    doctor           && `Medico/Profesional: ${doctor}`,
+    procedure        && `Procedimiento: ${procedure}`,
+    notes            && `Notas: ${notes}`,
+    agendadoPor      && `Agendado por: @${agendadoPor} (Telegram)`,
+    'Agendado via Bot Telegram - 440 Clinic',
   ].filter(Boolean).join('\n');
 
-  const attendees = patientEmail
-    ? [{ email: patientEmail, displayName: patient || patientEmail }]
-    : [];
+  const attendees = [];
+  if (patientEmail) attendees.push({ email: patientEmail, displayName: patient || patientEmail });
+  // Anadir al profesional si tiene correo personal (puede ser lista separada por comas)
+  if (professionalEmail) {
+    const emails = professionalEmail.split(',').map(e => e.trim()).filter(isPersonalEmail);
+    emails.forEach(email => attendees.push({ email, displayName: doctor || email }));
+  }
 
   return {
     summary: title, location: location || '', description: desc,
@@ -155,6 +161,7 @@ function buildEvent({ patient, patientEmail, procedure, doctor, date, startTime,
   };
 }
 
+/** Crea evento en un calendario */
 async function createCalendarEvent(calendarId, eventData, sendInvite) {
   const cal = google.calendar({ version: 'v3', auth: getGoogleAuth() });
   const res = await cal.events.insert({
@@ -181,23 +188,30 @@ async function listCalendarEvents(calendarId, date) {
 const TOOLS = [
   {
     name: 'crear_cita',
-    description: 'Crea una cita en Google Calendar. Requiere confirmación previa del usuario.',
+    description: `Crea una cita en Google Calendar con dual-write:
+- SIEMPRE escribe en el calendario principal del profesional/estetista/asesora (calendarId)
+- Si hay sala o recurso fisico (resourceCalendarId), tambien escribe ahi para bloquear ese espacio
+- Incluye siempre el professionalEmail del calendario seleccionado para enviar invitacion
+- Requiere confirmacion previa del usuario`,
     input_schema: {
       type: 'object',
       properties: {
-        calendarId:    { type: 'string', description: 'Google Calendar ID del calendario principal (MED/EST/COM)' },
-        calendarLabel: { type: 'string', description: 'Nombre del calendario para confirmación' },
-        patient:       { type: 'string', description: 'Nombre completo del paciente' },
-        patientEmail:  { type: 'string', description: 'Email del paciente para invitación' },
-        procedure:     { type: 'string', description: 'Servicio o procedimiento' },
-        doctor:        { type: 'string', description: 'Nombre del profesional' },
-        date:          { type: 'string', description: 'Fecha YYYY-MM-DD' },
-        startTime:     { type: 'string', description: 'Hora inicio HH:MM (24h)' },
-        endTime:       { type: 'string', description: 'Hora fin HH:MM (24h)' },
-        location:      { type: 'string', description: 'Ubicación o sala' },
-        notes:         { type: 'string', description: 'Notas adicionales' },
+        calendarId:         { type: 'string', description: 'Google Calendar ID del profesional/servicio principal (campo googleCalendarId del calendario)' },
+        calendarLabel:      { type: 'string', description: 'Nombre del calendario principal para confirmacion' },
+        resourceCalendarId: { type: 'string', description: 'Google Calendar ID del recurso fisico (sala/equipo) — opcional, para bloqueo del espacio' },
+        resourceLabel:      { type: 'string', description: 'Nombre del recurso fisico — opcional' },
+        professionalEmail:  { type: 'string', description: 'Email personal del profesional (campo personalEmail del calendario) para enviarle invitacion' },
+        patient:            { type: 'string', description: 'Nombre completo del paciente' },
+        patientEmail:       { type: 'string', description: 'Email del paciente para invitacion — opcional' },
+        procedure:          { type: 'string', description: 'Servicio o procedimiento' },
+        doctor:             { type: 'string', description: 'Nombre del profesional' },
+        date:               { type: 'string', description: 'Fecha YYYY-MM-DD' },
+        startTime:          { type: 'string', description: 'Hora inicio HH:MM (24h)' },
+        endTime:            { type: 'string', description: 'Hora fin HH:MM (24h)' },
+        location:           { type: 'string', description: 'Ubicacion o sala' },
+        notes:              { type: 'string', description: 'Notas adicionales' },
       },
-      required: ['calendarId', 'calendarLabel', 'patient', 'patientEmail', 'date', 'startTime'],
+      required: ['calendarId', 'calendarLabel', 'patient', 'date', 'startTime'],
     },
   },
   {
@@ -235,128 +249,143 @@ export default async function handler(req, res) {
 
   await sendTyping(chatId);
 
-  // Comando /start o /reset → limpiar historial y pedir identificación
+  // Comando /start o /reset
   if (userMessage === '/start' || userMessage === '/reset' || userMessage === '/nueva') {
     await clearHistory(supabase, chatId);
-    // Desvinculamos el chat_id del staff para forzar re-autenticación
     await supabase.from('staff_users').update({ telegram_chat_id: null }).eq('telegram_chat_id', String(chatId));
     await sendTelegram(chatId,
-      `👋 Hola, soy el asistente interno de <b>440 Clinic</b>.\n\nPara continuar, identifícate con tu nombre y PIN:\n<code>Nombre PIN</code>\n\nEjemplo: <code>Katherine 1234</code>`
+      `Hola, soy el asistente interno de <b>440 Clinic</b>.\n\nPara continuar, identificate con tu nombre y PIN:\n<code>Nombre PIN</code>\n\nEjemplo: <code>Katherine 1234</code>`
     );
     return res.status(200).json({ ok: true });
   }
 
-  // ─── Verificar si el staff ya está vinculado ───────────────────────────────
+  // Verificar si el staff ya esta vinculado
   let staff = await getStaffByChatId(supabase, chatId);
 
   if (!staff) {
-    // Intentar vincular con "Nombre PIN"
     staff = await tryLinkStaff(supabase, chatId, userMessage);
     if (staff) {
       await sendTelegram(chatId,
-        `✅ Bienvenid@ <b>${staff.nombre}</b>.\n\nYa puedes agendar. Dime en qué puedo ayudarte:`
+        `Bienvenid@ <b>${staff.nombre}</b>.\n\nYa puedes agendar. Dime en que puedo ayudarte:`
       );
       return res.status(200).json({ ok: true });
     }
-    // No identificado
     await sendTelegram(chatId,
-      `🔒 Para usar este bot debes identificarte.\n\nEscribe tu nombre y PIN así:\n<code>Nombre PIN</code>\n\nEjemplo: <code>Katherine 1234</code>\n\nSi no tienes cuenta, pide al administrador que te cree una.`
+      `Para usar este bot debes identificarte.\n\nEscribe tu nombre y PIN asi:\n<code>Nombre PIN</code>\n\nEjemplo: <code>Katherine 1234</code>\n\nSi no tienes cuenta, pide al administrador que te cree una.`
     );
     return res.status(200).json({ ok: true });
   }
 
-  // Staff identificado — usar su nombre real
   const username = staff.nombre;
 
   try {
-    // 1. Cargar historial de conversación
+    // 1. Cargar historial
     const history = await loadHistory(supabase, chatId);
 
-    // 2. Cargar calendarios configurados
-    const calendars = await getCalendarsFromSupabase(supabase);
-    const calsCtx   = calendars.length
-      ? calendars.map(c => `  - "${c.label}" (id: ${c.id}, googleCalendarId: ${c.googleCalendarId || 'N/A'})`).join('\n')
-      : '  (Sin calendarios configurados aún)';
+    // 2. Cargar calendarios desde calendar_configs
+    const allCalendars = await getCalendarsFromSupabase(supabase);
+
+    const professionalCals = allCalendars.filter(c => c.type === 'professional' || c.type === 'aesthetic');
+    const resourceCals     = allCalendars.filter(c => c.type === 'resource');
+    const generalCals      = allCalendars.filter(c => c.type === 'general');
+
+    const profCtx = professionalCals.length
+      ? professionalCals.map(c =>
+          `  - "${c.label}" | googleCalendarId: ${c.googleCalendarId || 'N/A'} | personalEmail: ${c.personalEmail || 'sin email'}`
+        ).join('\n')
+      : '  (ninguno)';
+
+    const resCtx = resourceCals.length
+      ? resourceCals.map(c =>
+          `  - "${c.label}" | googleCalendarId: ${c.googleCalendarId || 'N/A'}${c.personalEmail ? ` | invitar: ${c.personalEmail}` : ''}`
+        ).join('\n')
+      : '  (ninguno)';
+
+    const genCtx = generalCals.length
+      ? generalCals.map(c =>
+          `  - "${c.label}" | googleCalendarId: ${c.googleCalendarId || 'N/A'}${c.personalEmail ? ` | personalEmail: ${c.personalEmail}` : ''}`
+        ).join('\n')
+      : '  (ninguno)';
 
     const today    = new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Bogota' });
     const todayISO = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Bogota' });
 
     const systemPrompt = `Eres el asistente INTERNO de agendamiento de 440 Clinic by Dr. Gio (canal Telegram).
-Hablas ÚNICAMENTE con el personal de la clínica: recepcionistas, colaboradores y administradores.
-NUNCA interactúas con pacientes. Tu función es ayudar al equipo a gestionar los calendarios:
+Hablas UNICAMENTE con el personal de la clinica: recepcionistas, colaboradores y administradores.
+NUNCA interactuas con pacientes. Tu funcion es ayudar al equipo a gestionar los calendarios:
 agendar citas de pacientes, consultar disponibilidad, registrar bloqueos y coordinar grabaciones.
 Eres conversacional, claro y profesional. Hoy es ${today} (${todayISO}).
 
 ##########################################
-ESTRUCTURA DE CALENDARIOS 440 CLINIC
+LOGICA DE AGENDAMIENTO (MUY IMPORTANTE)
 ##########################################
-MÉDICOS (MED):
-- MED – DRGIO – CIRUGIAS
-- MED – DRGIO – CONSULTAS        → RES – CONSULTORIO – 440 | 30 min
-- MED – DRGIO – PROCEDIMIENTOS   → RES – SALA – PROCEDIMIENTOS | 60 min
-- MED – SHARON – CONSULTAS       → RES – CONSULTORIO – 440 | 30 min
-- MED – SHARON – PROCEDIMIENTOS  → RES – SALA – PROCEDIMIENTOS | 60 min
-- MED – DIMAS – PREANESTESIA     → RES – CONSULTORIO – 440 | 20 min
+Cada cita se escribe en DOS calendarios:
 
-ESTÉTICA (EST):
-- EST – AGENDA1 – KATHERINE  |  EST – AGENDA2 – LIA  |  EST – AGENDA3 – ROXANA
-  (Postoperatorio → RES – SALA – POSTOPERATORIO | 60 min)
-  (Depilación     → RES – EQUIPO – DEPILACION   | 60 min)
-  (Hydrafacial    → RES – EQUIPO – HYDRASH       | 60 min)
-  (Hiperbárica    → RES – EQUIPO – CAMARA        | 60 min)
+1. CALENDARIO PRINCIPAL (obligatorio) = el calendario del PROFESIONAL o SERVICIO
+   Ejemplos: DRGIO CONSULTAS, DRA SHARON CONSULTAS, KATHERINE, LUCERO, AUDIOVISUAL 440
+   - Usa su googleCalendarId como calendarId
+   - Usa su personalEmail como professionalEmail (para enviarle la invitacion al evento)
 
-COMERCIAL (COM):
-- COM – ASESORA – LUCERO | COM – ASESORA – SARA  → 30 min
+2. RECURSO FISICO (cuando aplica) = sala o equipo que se va a usar
+   Ejemplos: CONSULTORIO-440, SALA PROCEDIMIENTOS, CAMARA HIPERBARICA, DEPILACION LASER
+   - Usa su googleCalendarId como resourceCalendarId
+   - Esto bloquea ese espacio en el calendario del recurso
 
-AUXILIARES (AUX):
-- AUX – BLOQUEOS – DRGIO    → bloqueos internos Dr. Gio (NUNCA pacientes)
-- AUX – BLOQUEOS – SHARON   → bloqueos internos Sharon (NUNCA pacientes)
-- AUX – AUDIOVISUAL – 440   → agenda del equipo audiovisual para grabaciones
-  (se invita al equipo cuando se va a filmar una cirugía, consulta o procedimiento)
+REGLAS CRITICAS:
+- Calendarios RES (resource): NUNCA son el calendario principal, son siempre el recurso secundario
+- AUX - BLOQUEOS: solo para bloqueos internos del doctor, NUNCA para citas de pacientes
+- AUX - AUDIOVISUAL: para grabaciones, el personalEmail contiene los correos del equipo audiovisual separados por coma
+- BLOQUEOS: solo calendarId, sin resourceCalendarId ni professionalEmail
 
-REGLA CRÍTICA:
-- RES: NUNCA es el calendario principal de una cita de paciente (es recurso secundario)
-- AUX – BLOQUEOS: solo para bloqueos internos, NUNCA pacientes
-- AUX – AUDIOVISUAL – 440: SÍ se agenda aquí cuando se va a grabar contenido;
-  se invita al equipo audiovisual a la cirugía/consulta/procedimiento correspondiente
+EJEMPLOS DE USO:
+  Consulta Dr. Gio → calendarId de "DRGIO CONSULTAS" + resourceCalendarId de "CONSULTORIO-440" + professionalEmail: drgio@440clinic.com
+  Procedimiento Sharon → calendarId de "DRA SHARON PROCEDIMIENTOS" + resourceCalendarId de "SALA PROCEDIMIENTOS" + professionalEmail: dra.sharonsantiago@gmail.com
+  Hiperbar Katherine → calendarId de "KATHERINE" + resourceCalendarId de "CAMARA HIPERBARICA" + professionalEmail: katherinepertuz833@gmail.com
+  Grabacion cirugia → calendarId de "AUDIOVISUAL 440" + professionalEmail: Vanayawork@gmail.com,Ricardrivera27@gmail.com
+  Bloqueo Dr. Gio → calendarId de "BLOQUEOS DRGIO" (sin recurso)
 
 ##########################################
-HORARIO: L-V 8:00-18:00 | Sáb 8:00-13:00 | Dom CERRADO
+HORARIO: L-V 8:00-18:00 | Sab 8:00-13:00 | Dom CERRADO
 ##########################################
 
-FORMATO TÍTULO: "[Servicio] – [Paciente]"  Ej: "Consulta – María López"
+FORMATO TITULO: "[Servicio] - [Paciente]"  Ej: "Consulta - Maria Lopez"
 
 ##########################################
-CALENDARIOS CONFIGURADOS EN EL SISTEMA:
+CALENDARIOS CONFIGURADOS EN EL SISTEMA
 ##########################################
-${calsCtx}
+PROFESIONALES Y ESTETICA:
+${profCtx}
+
+RECURSOS Y SALAS:
+${resCtx}
+
+GENERALES (bloqueos, asesoras, audiovisual):
+${genCtx}
 
 ##########################################
 REGLAS DE COMPORTAMIENTO
 ##########################################
-1. Recuerdas toda la conversación — NO vuelvas a preguntar datos ya dados.
-2. Reúne: paciente, email paciente, servicio, profesional, fecha y hora.
-3. Si falta algún dato → pregunta SOLO ese dato, de forma natural.
-4. Si el usuario no especifica profesional → pregunta antes de agendar.
-5. ANTES de crear, muestra el resumen y espera "sí":
+1. Recuerdas toda la conversacion. NO vuelvas a preguntar datos ya dados.
+2. Reune: paciente, servicio, profesional, fecha, hora. Email del paciente es OPCIONAL.
+3. Si falta algun dato, pregunta SOLO ese dato de forma natural.
+4. Si el usuario no especifica profesional, pregunta antes de agendar.
+5. ANTES de crear, muestra resumen y espera confirmacion "si":
 
-📅 RESUMEN DEL AGENDAMIENTO
-─────────────────────────
+RESUMEN DEL AGENDAMIENTO
 Paciente   : [Nombre]
-Email      : [Email]
 Servicio   : [Tipo]
 Profesional: [Nombre]
 Fecha      : [Fecha]
-Hora       : [Inicio] – [Fin]
-Calendario : [Nombre]
-─────────────────────────
-¿Confirmas? (Sí / No)
+Hora       : [Inicio] - [Fin]
+Calendario : [Principal] + [Recurso si aplica]
+Confirmacion: Si / No
 
-6. Solo llamar crear_cita cuando el usuario confirme con "sí".
-7. Responde SIEMPRE en español, breve y claro.
-8. Normaliza: "hiperbárica"→"Cámara Hiperbárica", "hydra"→"Hydrafacial", "post-op"→"Postoperatorio".`;
+6. Solo llamar crear_cita cuando el usuario confirme con "si".
+7. Al llamar crear_cita SIEMPRE incluir professionalEmail del profesional seleccionado.
+8. Responde SIEMPRE en espanol, breve y claro.
+9. Normaliza: "hiperbar" a "Camara Hiperbar", "hydra" a "Hydrafacial", "post-op" a "Postoperatorio".`;
 
-    // 3. Construir mensajes para Claude
+    // 3. Construir mensajes
     const currentMessages = [
       ...history,
       { role: 'user', content: userMessage },
@@ -364,10 +393,10 @@ Calendario : [Nombre]
 
     const anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() });
 
-    // 4. Loop agéntico
-    let loopMessages  = [...currentMessages];
-    let finalReply    = '';
-    const MAX_ITERS   = 5;
+    // 4. Loop agentico
+    let loopMessages = [...currentMessages];
+    let finalReply   = '';
+    const MAX_ITERS  = 5;
 
     for (let i = 0; i < MAX_ITERS; i++) {
       const response = await anthropic.messages.create({
@@ -378,13 +407,11 @@ Calendario : [Nombre]
         messages:   loopMessages,
       });
 
-      // Recopilar texto
       const texts = response.content.filter(b => b.type === 'text').map(b => b.text);
       if (texts.length) finalReply = texts.join('\n');
 
       if (response.stop_reason !== 'tool_use') break;
 
-      // Procesar tool calls
       const toolCalls = response.content.filter(b => b.type === 'tool_use');
       if (!toolCalls.length) break;
 
@@ -396,21 +423,53 @@ Calendario : [Nombre]
         let result;
         try {
           if (tc.name === 'crear_cita') {
-            const { calendarId, calendarLabel, patient, patientEmail, procedure, doctor,
-                    date, startTime, endTime, location, notes } = tc.input;
-            const created = await createCalendarEvent(calendarId,
-              { patient, patientEmail, procedure, doctor, date, startTime, endTime, location, notes, agendadoPor: username },
-              !!patientEmail
-            );
-            result = JSON.stringify({ success: true, eventId: created.id, calendarLabel, patient, date, startTime });
-            // Log
+            const {
+              calendarId, calendarLabel,
+              resourceCalendarId, resourceLabel,
+              professionalEmail,
+              patient, patientEmail, procedure, doctor,
+              date, startTime, endTime, location, notes,
+            } = tc.input;
+
+            const eventData = {
+              patient, patientEmail, procedure, doctor, professionalEmail,
+              date, startTime, endTime, location, notes, agendadoPor: username,
+            };
+            const hasAttendees = !!(patientEmail || professionalEmail);
+
+            // Escritura principal en el calendario del profesional
+            const created = await createCalendarEvent(calendarId, eventData, hasAttendees);
+
+            // Dual-write en el recurso fisico (sin enviar invitaciones adicionales)
+            let resourceWritten = false;
+            if (resourceCalendarId && resourceCalendarId !== calendarId) {
+              try {
+                await createCalendarEvent(resourceCalendarId, eventData, false);
+                resourceWritten = true;
+              } catch (err) {
+                console.error('[Telegram] Error escribiendo en recurso:', err.message);
+              }
+            }
+
+            result = JSON.stringify({
+              success: true,
+              eventId: created.id,
+              calendarLabel,
+              resourceLabel: resourceWritten ? resourceLabel : null,
+              patient, date, startTime,
+              professionalNotified: !!professionalEmail,
+            });
+
             await supabase.from('telegram_logs').insert({
               telegram_user_id: String(body.message.from?.id),
-              telegram_username: username, chat_id: String(chatId),
-              message: userMessage, action: 'crear_cita',
-              calendar_result: JSON.stringify({ calendarLabel, patient, date }),
+              telegram_username: username,
+              chat_id: String(chatId),
+              message: userMessage,
+              action: 'crear_cita',
+              calendar_result: JSON.stringify({ calendarLabel, resourceLabel: resourceWritten ? resourceLabel : null, patient, date }),
               created_at: new Date().toISOString(),
             }).catch(() => {});
+
           } else if (tc.name === 'consultar_disponibilidad') {
             const { calendarId, calendarLabel, date } = tc.input;
             const events = await listCalendarEvents(calendarId, date);
@@ -420,7 +479,7 @@ Calendario : [Nombre]
                 title: e.summary,
                 start: e.start?.dateTime
                   ? new Date(e.start.dateTime).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Bogota' })
-                  : 'Todo el día',
+                  : 'Todo el dia',
               })),
             });
           }
@@ -433,7 +492,6 @@ Calendario : [Nombre]
       loopMessages.push({ role: 'user', content: toolResults });
     }
 
-    // Si no tenemos texto final, pedir una respuesta más
     if (!finalReply.trim()) {
       const last = await anthropic.messages.create({
         model: 'claude-sonnet-4-5', max_tokens: 512,
@@ -442,19 +500,19 @@ Calendario : [Nombre]
       finalReply = last.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
     }
 
-    // 5. Guardar historial actualizado
+    // 5. Guardar historial
     const updatedHistory = [
       ...currentMessages,
-      { role: 'assistant', content: finalReply || '¿En qué más puedo ayudarte?' },
+      { role: 'assistant', content: finalReply || 'En que mas puedo ayudarte?' },
     ];
     await saveHistory(supabase, chatId, updatedHistory);
 
     // 6. Responder en Telegram
-    await sendTelegram(chatId, finalReply || '¿En qué puedo ayudarte?');
+    await sendTelegram(chatId, finalReply || 'En que puedo ayudarte?');
 
   } catch (err) {
     console.error('[Telegram Error]', err);
-    await sendTelegram(chatId, `❌ Error interno: ${err.message}\n\nEscribe /reset para reiniciar la conversación.`);
+    await sendTelegram(chatId, `Error interno: ${err.message}\n\nEscribe /reset para reiniciar la conversacion.`);
   }
 
   return res.status(200).json({ ok: true });
