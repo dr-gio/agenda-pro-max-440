@@ -1,0 +1,5 @@
+{
+  "name": "440 Clinic — Calendar Board",
+  "description": "Internal operational board for healthcare clinics to manage resources and professionals with Google Calendar integration and TV display mode.",
+  "requestFramePermissions": []
+}

@@ -29,7 +29,8 @@ export interface CalendarEvent {
 }
 
 export interface AuthSession {
-  user: string;
+  user: string;       // nombre del staff
+  staffId: string;    // UUID de staff_users
   role: 'admin' | 'viewer';
   expiresAt: number;
 }

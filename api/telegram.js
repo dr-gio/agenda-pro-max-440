@@ -6,6 +6,11 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { google }  from 'googleapis';
 import { createClient } from '@supabase/supabase-js';
+import { createHash } from 'crypto';
+
+function hashPin(pin) {
+  return createHash('sha256').update(String(pin)).digest('hex');
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -67,6 +72,43 @@ async function clearHistory(supabase, chatId) {
   try {
     await supabase.from('telegram_conversations').delete().eq('chat_id', String(chatId));
   } catch {}
+}
+
+// ─── Autenticación del staff via PIN ─────────────────────────────────────────
+
+/** Busca al staff vinculado a este chat_id */
+async function getStaffByChatId(supabase, chatId) {
+  try {
+    const { data } = await supabase
+      .from('staff_users')
+      .select('id, nombre, rol')
+      .eq('telegram_chat_id', String(chatId))
+      .eq('activo', true)
+      .single();
+    return data || null;
+  } catch { return null; }
+}
+
+/** Intenta verificar "Nombre PIN" y vincula el chat_id al staff */
+async function tryLinkStaff(supabase, chatId, text) {
+  // Acepta formato: "Katherine 1234" o "katherine 1234"
+  const match = text.trim().match(/^(\S+)\s+(\d{4,8})$/);
+  if (!match) return null;
+  const [, nombre, pin] = match;
+  const { data } = await supabase
+    .from('staff_users')
+    .select('id, nombre, rol')
+    .ilike('nombre', nombre)
+    .eq('pin_hash', hashPin(pin))
+    .eq('activo', true)
+    .single();
+  if (!data) return null;
+  // Vincular
+  await supabase
+    .from('staff_users')
+    .update({ telegram_chat_id: String(chatId), updated_at: new Date().toISOString() })
+    .eq('id', data.id);
+  return data;
 }
 
 // ─── Google Calendar ──────────────────────────────────────────────────────────
@@ -188,20 +230,43 @@ export default async function handler(req, res) {
   if (!body?.message?.text) return res.status(200).json({ ok: true });
 
   const chatId      = body.message.chat.id;
-  const username    = body.message.from?.username || body.message.from?.first_name || 'usuario';
   const userMessage = body.message.text.trim();
   const supabase    = getSupabase();
 
   await sendTyping(chatId);
 
-  // Comando /start o /reset → limpiar historial
+  // Comando /start o /reset → limpiar historial y pedir identificación
   if (userMessage === '/start' || userMessage === '/reset' || userMessage === '/nueva') {
     await clearHistory(supabase, chatId);
+    // Desvinculamos el chat_id del staff para forzar re-autenticación
+    await supabase.from('staff_users').update({ telegram_chat_id: null }).eq('telegram_chat_id', String(chatId));
     await sendTelegram(chatId,
-      `👋 Hola, soy el asistente de <b>440 Clinic</b>.\n\nPuedo ayudarte a:\n📅 <b>Agendar citas</b> — dime paciente, servicio, fecha y hora\n🔍 <b>Consultar disponibilidad</b> — pregúntame por una fecha\n\nEscribe en español natural, por ejemplo:\n<i>"Agenda a María García para consulta con el Dr. Gio el lunes a las 10am"</i>`
+      `👋 Hola, soy el asistente interno de <b>440 Clinic</b>.\n\nPara continuar, identifícate con tu nombre y PIN:\n<code>Nombre PIN</code>\n\nEjemplo: <code>Katherine 1234</code>`
     );
     return res.status(200).json({ ok: true });
   }
+
+  // ─── Verificar si el staff ya está vinculado ───────────────────────────────
+  let staff = await getStaffByChatId(supabase, chatId);
+
+  if (!staff) {
+    // Intentar vincular con "Nombre PIN"
+    staff = await tryLinkStaff(supabase, chatId, userMessage);
+    if (staff) {
+      await sendTelegram(chatId,
+        `✅ Bienvenid@ <b>${staff.nombre}</b>.\n\nYa puedes agendar. Dime en qué puedo ayudarte:`
+      );
+      return res.status(200).json({ ok: true });
+    }
+    // No identificado
+    await sendTelegram(chatId,
+      `🔒 Para usar este bot debes identificarte.\n\nEscribe tu nombre y PIN así:\n<code>Nombre PIN</code>\n\nEjemplo: <code>Katherine 1234</code>\n\nSi no tienes cuenta, pide al administrador que te cree una.`
+    );
+    return res.status(200).json({ ok: true });
+  }
+
+  // Staff identificado — usar su nombre real
+  const username = staff.nombre;
 
   try {
     // 1. Cargar historial de conversación

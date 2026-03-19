@@ -13,9 +13,14 @@ interface AdminViewProps {
 const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
   const [calendars, setCalendars] = useState<CalendarConfig[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendars' | 'settings' | 'activity'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendars' | 'settings' | 'activity' | 'team'>('dashboard');
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [loadingActivity, setLoadingActivity] = useState(false);
+  const [staffList, setStaffList] = useState<any[]>([]);
+  const [loadingStaff, setLoadingStaff] = useState(false);
+  const [staffForm, setStaffForm] = useState({ nombre: '', pin: '', rol: 'colaborador' });
+  const [staffError, setStaffError] = useState('');
+  const [staffSaving, setStaffSaving] = useState(false);
   const [form, setForm] = useState<Partial<CalendarConfig>>({
     id: '', label: '', type: 'resource', active: true, showDetails: true, sort: 1, timezone: TIMEZONE, googleCalendarId: '', avatarUrl: ''
   });
@@ -48,6 +53,45 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
     } finally {
       setLoadingActivity(false);
     }
+  };
+
+  const loadStaff = async () => {
+    setLoadingStaff(true);
+    try {
+      const res = await fetch('/api/staff');
+      const data = await res.json();
+      setStaffList(Array.isArray(data) ? data : []);
+    } finally {
+      setLoadingStaff(false);
+    }
+  };
+
+  const handleCreateStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStaffError('');
+    setStaffSaving(true);
+    try {
+      const res = await fetch('/api/staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(staffForm),
+      });
+      const data = await res.json();
+      if (!res.ok) { setStaffError(data.error || 'Error al crear'); return; }
+      setStaffForm({ nombre: '', pin: '', rol: 'colaborador' });
+      await loadStaff();
+    } finally {
+      setStaffSaving(false);
+    }
+  };
+
+  const handleToggleStaff = async (id: string, activo: boolean) => {
+    await fetch(`/api/staff?id=${id}`, {
+      method: activo ? 'DELETE' : 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: activo ? undefined : JSON.stringify({ activo: true }),
+    });
+    await loadStaff();
   };
 
   const loadAdminData = async () => {
@@ -211,6 +255,13 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
               IA & AJUSTES
+            </button>
+            <button
+              onClick={() => { setActiveTab('team'); loadStaff(); }}
+              className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'team' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+              EQUIPO
             </button>
             <button
               onClick={() => { setActiveTab('activity'); loadActivity(); }}
@@ -548,6 +599,116 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
                   La API key de Anthropic está configurada como variable de entorno segura en Vercel. No es necesario ingresarla manualmente.
                 </p>
               </div>
+            </div>
+          </div>
+        </div>
+      ) : activeTab === 'team' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-10 items-start">
+          {/* Formulario crear staff */}
+          <div className="lg:col-span-1">
+            <div className="bg-white rounded-3xl border border-slate-200 p-8 shadow-sm">
+              <h2 className="text-xl font-black mb-6 text-slate-800">Nuevo Usuario</h2>
+              <form onSubmit={handleCreateStaff} className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">Nombre</label>
+                  <input
+                    required
+                    placeholder="Ej: Katherine"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none text-slate-900 transition-all font-medium"
+                    value={staffForm.nombre}
+                    onChange={(e) => setStaffForm({ ...staffForm, nombre: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">PIN (4–8 dígitos)</label>
+                  <input
+                    required
+                    type="password"
+                    inputMode="numeric"
+                    maxLength={8}
+                    placeholder="••••"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none text-slate-900 transition-all font-medium tracking-widest text-center text-xl"
+                    value={staffForm.pin}
+                    onChange={(e) => setStaffForm({ ...staffForm, pin: e.target.value.replace(/\D/g, '') })}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">Rol</label>
+                  <select
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-4 focus:ring-blue-500/10 focus:border-blue-500 outline-none text-slate-900 transition-all font-medium"
+                    value={staffForm.rol}
+                    onChange={(e) => setStaffForm({ ...staffForm, rol: e.target.value })}
+                  >
+                    <option value="colaborador">Colaborador</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </div>
+                {staffError && <p className="text-red-500 text-xs font-bold">{staffError}</p>}
+                <button
+                  type="submit"
+                  disabled={staffSaving}
+                  className="w-full py-3 bg-slate-900 text-white font-black rounded-xl text-xs uppercase tracking-widest hover:bg-slate-700 transition-colors disabled:opacity-50"
+                >
+                  {staffSaving ? 'Creando...' : 'Crear Usuario'}
+                </button>
+              </form>
+            </div>
+          </div>
+
+          {/* Lista del equipo */}
+          <div className="lg:col-span-2">
+            <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-sm">
+              <div className="px-8 py-5 border-b border-slate-100 flex justify-between items-center">
+                <h2 className="text-xl font-black text-slate-800">Equipo</h2>
+                <button onClick={loadStaff} className="text-[10px] font-black text-slate-400 uppercase tracking-widest hover:text-slate-600">Actualizar</button>
+              </div>
+              {loadingStaff ? (
+                <div className="text-center py-12 text-slate-400 text-xs font-bold uppercase tracking-widest">Cargando...</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100 bg-slate-50/50">
+                      <th className="text-left px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Nombre</th>
+                      <th className="text-left px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Rol</th>
+                      <th className="text-left px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Telegram</th>
+                      <th className="text-left px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</th>
+                      <th className="px-8 py-4"></th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-50">
+                    {staffList.map((s) => (
+                      <tr key={s.id} className={`hover:bg-slate-50/50 transition-colors ${!s.activo ? 'opacity-40' : ''}`}>
+                        <td className="px-8 py-4 font-bold text-slate-900">{s.nombre}</td>
+                        <td className="px-8 py-4">
+                          <span className={`text-[9px] font-black px-2 py-1 rounded-full uppercase ${s.rol === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-500'}`}>
+                            {s.rol}
+                          </span>
+                        </td>
+                        <td className="px-8 py-4 text-xs text-slate-500">
+                          {s.telegram_chat_id ? (
+                            <span className="text-emerald-600 font-bold text-[10px]">✓ Vinculado</span>
+                          ) : (
+                            <span className="text-slate-300 text-[10px]">Sin vincular</span>
+                          )}
+                        </td>
+                        <td className="px-8 py-4">
+                          <span className={`text-[9px] font-black px-2 py-1 rounded-full uppercase ${s.activo ? 'bg-emerald-100 text-emerald-600' : 'bg-red-100 text-red-500'}`}>
+                            {s.activo ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td className="px-8 py-4 text-right">
+                          <button
+                            onClick={() => handleToggleStaff(s.id, s.activo)}
+                            className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors ${s.activo ? 'text-red-500 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                          >
+                            {s.activo ? 'Desactivar' : 'Activar'}
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           </div>
         </div>

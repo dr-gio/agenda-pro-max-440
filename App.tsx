@@ -37,9 +37,10 @@ const App: React.FC = () => {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
-  const handleLogin = (user: string, role: 'admin' | 'viewer') => {
+  const handleLogin = (user: string, role: 'admin' | 'viewer', staffId: string) => {
     const newSession: AuthSession = {
       user,
+      staffId,
       role,
       expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 30 // 30 días de sesión
     };
