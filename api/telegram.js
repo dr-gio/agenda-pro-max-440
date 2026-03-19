@@ -303,9 +303,9 @@ export default async function handler(req, res) {
   }
 
   // Validar secret de Telegram (opcional pero recomendado)
-  const webhookSecret = process.env.TELEGRAM_WEBHOOK_SECRET;
+  const webhookSecret = (process.env.TELEGRAM_WEBHOOK_SECRET || '').trim();
   if (webhookSecret) {
-    const incomingSecret = req.headers['x-telegram-bot-api-secret-token'];
+    const incomingSecret = (req.headers['x-telegram-bot-api-secret-token'] || '').trim();
     if (incomingSecret !== webhookSecret) {
       return res.status(403).json({ error: 'Invalid webhook secret' });
     }
