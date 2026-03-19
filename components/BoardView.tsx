@@ -286,6 +286,7 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
         selectedDate={selectedDate}
         isAdmin={isAdmin}
         userName={session?.user || 'Colaborador'}
+        onEventCreated={() => loadData(selectedDate)}
       />
     </>
   );

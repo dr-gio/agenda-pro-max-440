@@ -14,6 +14,7 @@ interface ChatBoxProps {
   selectedDate: string;
   isAdmin: boolean;
   userName?: string;
+  onEventCreated?: () => void;
 }
 
 const WELCOME_MESSAGE = (isAdmin: boolean): Message => ({
@@ -46,7 +47,7 @@ function formatText(text: string): JSX.Element {
   );
 }
 
-const ChatBox: React.FC<ChatBoxProps> = ({ calendars, selectedDate, isAdmin, userName = 'Usuario' }) => {
+const ChatBox: React.FC<ChatBoxProps> = ({ calendars, selectedDate, isAdmin, userName = 'Usuario', onEventCreated }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE(isAdmin)]);
   const [input, setInput] = useState('');
@@ -114,6 +115,10 @@ const ChatBox: React.FC<ChatBoxProps> = ({ calendars, selectedDate, isAdmin, use
       };
 
       setMessages(prev => prev.filter(m => m.id !== 'loading').concat(assistantMsg));
+
+      if (data.eventCreated && onEventCreated) {
+        setTimeout(onEventCreated, 1500);
+      }
     } catch (err) {
       setMessages(prev =>
         prev.filter(m => m.id !== 'loading').concat({

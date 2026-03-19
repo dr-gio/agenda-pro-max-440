@@ -369,6 +369,7 @@ Este asistente NO es un canal de autoagendamiento para pacientes.`;
     let currentMessages = [...anthropicMessages];
     let finalText = '';
     let toolResults = [];
+    let eventCreated = false;
     const MAX_ITERATIONS = 5;
 
     for (let i = 0; i < MAX_ITERATIONS; i++) {
@@ -403,6 +404,7 @@ Este asistente NO es un canal de autoagendamiento para pacientes.`;
           try {
             const eventResource = buildEventResource({ patient, procedure, doctor, professionalEmail, date, startTime, endTime, location, notes, agendadoPor: userName });
             const created = await createEvent(calendarId, eventResource, !!professionalEmail);
+            eventCreated = true;
             // Log de trazabilidad
             await logChatAction({ userName, isAdmin, userMessage: messages[messages.length - 1]?.content || '', action: 'crear_cita', calendarLabel, patient, date, success: true });
             toolResult = JSON.stringify({
@@ -475,7 +477,7 @@ Este asistente NO es un canal de autoagendamiento para pacientes.`;
       finalText = lastResponse.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
     }
 
-    return res.status(200).json({ reply: finalText || '¿En qué puedo ayudarte?' });
+    return res.status(200).json({ reply: finalText || '¿En qué puedo ayudarte?', eventCreated });
 
   } catch (error) {
     console.error('Chat API Error:', error);
