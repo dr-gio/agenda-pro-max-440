@@ -263,6 +263,14 @@ ASESORÍAS:
 → Calendario: COM – ASESORA correspondiente
 → Duración: 30 min
 
+GRABACIÓN AUDIOVISUAL / CONTENIDO:
+→ Calendario PRINCIPAL: AUX – AUDIOVISUAL – 440 (usa su googleCalendarId del contexto)
+→ Este calendario SÍ acepta eventos — úsalo directamente con create_appointment
+→ Invitar a: Vanaya (vanayawork@gmail.com) y/o Ricardo (Ricardrivera27@gmail.com)
+→ Título: "[Tipo de procedimiento] – [Nombre paciente]"
+→ Duración: la que indique el usuario
+→ Descripción: detalles del procedimiento y médico involucrado
+
 ##########################################
 BLOQUEOS
 ##########################################
