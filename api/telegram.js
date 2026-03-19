@@ -160,7 +160,9 @@ REGLAS:
     messages: [{ role: 'user', content: userMessage }],
   });
 
-  const raw = response.content[0].text.trim();
+  // Limpiar markdown si Claude lo incluye (```json ... ```)
+  let raw = response.content[0].text.trim();
+  raw = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```\s*$/i, '').trim();
   return JSON.parse(raw);
 }
 
