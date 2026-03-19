@@ -188,21 +188,19 @@ async function listCalendarEvents(calendarId, date) {
 const TOOLS = [
   {
     name: 'crear_cita',
-    description: `Crea una cita en Google Calendar con dual-write:
-- SIEMPRE escribe en el calendario principal del profesional/estetista/asesora (calendarId)
-- Si hay sala o recurso fisico (resourceCalendarId), tambien escribe ahi para bloquear ese espacio
-- Incluye siempre el professionalEmail del calendario seleccionado para enviar invitacion
+    description: `Crea una cita en Google Calendar.
+- Escribe en el calendario principal del profesional/servicio (calendarId)
+- Si hay sala o equipo fisico (resourceCalendarId), tambien escribe ahi para bloquear ese espacio
 - Requiere confirmacion previa del usuario`,
     input_schema: {
       type: 'object',
       properties: {
-        calendarId:         { type: 'string', description: 'Google Calendar ID del profesional/servicio principal (campo googleCalendarId del calendario)' },
-        calendarLabel:      { type: 'string', description: 'Nombre del calendario principal para confirmacion' },
-        resourceCalendarId: { type: 'string', description: 'Google Calendar ID del recurso fisico (sala/equipo) — opcional, para bloqueo del espacio' },
+        calendarId:         { type: 'string', description: 'googleCalendarId del calendario principal del profesional o servicio' },
+        calendarLabel:      { type: 'string', description: 'Nombre del calendario principal' },
+        resourceCalendarId: { type: 'string', description: 'googleCalendarId del recurso fisico (sala/equipo) — opcional' },
         resourceLabel:      { type: 'string', description: 'Nombre del recurso fisico — opcional' },
-        professionalEmail:  { type: 'string', description: 'Email personal del profesional (campo personalEmail del calendario) para enviarle invitacion' },
         patient:            { type: 'string', description: 'Nombre completo del paciente' },
-        patientEmail:       { type: 'string', description: 'Email del paciente para invitacion — opcional' },
+        patientEmail:       { type: 'string', description: 'Email del paciente — opcional' },
         procedure:          { type: 'string', description: 'Servicio o procedimiento' },
         doctor:             { type: 'string', description: 'Nombre del profesional' },
         date:               { type: 'string', description: 'Fecha YYYY-MM-DD' },
@@ -323,25 +321,24 @@ Cada cita se escribe en DOS calendarios:
 
 1. CALENDARIO PRINCIPAL (obligatorio) = el calendario del PROFESIONAL o SERVICIO
    Ejemplos: DRGIO CONSULTAS, DRA SHARON CONSULTAS, KATHERINE, LUCERO, AUDIOVISUAL 440
-   - Usa su googleCalendarId como calendarId
-   - Usa su personalEmail como professionalEmail (para enviarle la invitacion al evento)
+   - Usa su googleCalendarId como calendarId en el tool crear_cita
 
-2. RECURSO FISICO (cuando aplica) = sala o equipo que se va a usar
+2. RECURSO FISICO (cuando aplica) = sala o equipo fisico que se va a usar
    Ejemplos: CONSULTORIO-440, SALA PROCEDIMIENTOS, CAMARA HIPERBARICA, DEPILACION LASER
-   - Usa su googleCalendarId como resourceCalendarId
-   - Esto bloquea ese espacio en el calendario del recurso
+   - Usa su googleCalendarId como resourceCalendarId en el tool crear_cita
+   - Esto bloquea ese espacio
 
 REGLAS CRITICAS:
-- Calendarios RES (resource): NUNCA son el calendario principal, son siempre el recurso secundario
+- Calendarios tipo resource: NUNCA son el calendario principal, siempre son el secundario
 - AUX - BLOQUEOS: solo para bloqueos internos del doctor, NUNCA para citas de pacientes
-- AUX - AUDIOVISUAL: para grabaciones, el personalEmail contiene los correos del equipo audiovisual separados por coma
-- BLOQUEOS: solo calendarId, sin resourceCalendarId ni professionalEmail
+- AUX - AUDIOVISUAL: usar para coordinar grabaciones de contenido
+- BLOQUEOS: solo calendarId, sin resourceCalendarId
 
-EJEMPLOS DE USO:
-  Consulta Dr. Gio → calendarId de "DRGIO CONSULTAS" + resourceCalendarId de "CONSULTORIO-440" + professionalEmail: drgio@440clinic.com
-  Procedimiento Sharon → calendarId de "DRA SHARON PROCEDIMIENTOS" + resourceCalendarId de "SALA PROCEDIMIENTOS" + professionalEmail: dra.sharonsantiago@gmail.com
-  Hiperbar Katherine → calendarId de "KATHERINE" + resourceCalendarId de "CAMARA HIPERBARICA" + professionalEmail: katherinepertuz833@gmail.com
-  Grabacion cirugia → calendarId de "AUDIOVISUAL 440" + professionalEmail: Vanayawork@gmail.com,Ricardrivera27@gmail.com
+EJEMPLOS:
+  Consulta Dr. Gio → calendarId de "DRGIO CONSULTAS" + resourceCalendarId de "CONSULTORIO - 440"
+  Procedimiento Sharon → calendarId de "DRA SHARON PROCEDIMIENTOS" + resourceCalendarId de "SALA PROCEDIMIENTOS"
+  Katherine Hiperbar → calendarId de "KATHERINE" + resourceCalendarId de "CAMARA HIPERBARICA"
+  Grabacion → calendarId de "AUDIOVISUAL 440" (sin recurso)
   Bloqueo Dr. Gio → calendarId de "BLOQUEOS DRGIO" (sin recurso)
 
 ##########################################
@@ -428,10 +425,13 @@ Confirmacion: Si / No
             const {
               calendarId, calendarLabel,
               resourceCalendarId, resourceLabel,
-              professionalEmail,
               patient, patientEmail, procedure, doctor,
               date, startTime, endTime, location, notes,
             } = tc.input;
+
+            // Obtener personalEmail automaticamente desde el calendario (sin que Claude lo sepa)
+            const mainCal = allCalendars.find(c => c.googleCalendarId === calendarId);
+            const professionalEmail = mainCal?.personalEmail || '';
 
             const eventData = {
               patient, patientEmail, procedure, doctor, professionalEmail,
