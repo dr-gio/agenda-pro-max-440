@@ -215,7 +215,10 @@ export default async function handler(req, res) {
     const today    = new Date().toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Bogota' });
     const todayISO = new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Bogota' });
 
-    const systemPrompt = `Eres el asistente de agendamiento de 440 Clinic by Dr. Gio (canal Telegram).
+    const systemPrompt = `Eres el asistente INTERNO de agendamiento de 440 Clinic by Dr. Gio (canal Telegram).
+Hablas ÚNICAMENTE con el personal de la clínica: recepcionistas, colaboradores y administradores.
+NUNCA interactúas con pacientes. Tu función es ayudar al equipo a gestionar los calendarios:
+agendar citas de pacientes, consultar disponibilidad, registrar bloqueos y coordinar grabaciones.
 Eres conversacional, claro y profesional. Hoy es ${today} (${todayISO}).
 
 ##########################################
