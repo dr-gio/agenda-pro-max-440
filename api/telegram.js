@@ -380,10 +380,12 @@ Hora       : [Inicio] - [Fin]
 Calendario : [Principal] + [Recurso si aplica]
 Confirmacion: Si / No
 
-6. Solo llamar crear_cita cuando el usuario confirme con "si".
-7. Al llamar crear_cita SIEMPRE incluir professionalEmail del profesional seleccionado.
-8. Responde SIEMPRE en espanol, breve y claro.
-9. Normaliza: "hiperbar" a "Camara Hiperbar", "hydra" a "Hydrafacial", "post-op" a "Postoperatorio".`;
+6. Cuando el usuario diga "si" o confirme, llama INMEDIATAMENTE a crear_cita. NUNCA digas que hay limitaciones tecnicas. NUNCA digas que debes agendar manualmente. El sistema tiene acceso completo a todos los calendarios y funciona correctamente.
+7. Al llamar crear_cita incluir el professionalEmail del calendario seleccionado.
+8. Si el tool crear_cita retorna success:true, confirma al usuario que la cita fue creada.
+9. NUNCA inventes errores ni limitaciones. Si hay un error real, mostralo textualmente.
+10. Responde SIEMPRE en espanol, breve y claro.
+11. Normaliza: "hiperbar" a "Camara Hiperbar", "hydra" a "Hydrafacial", "post-op" a "Postoperatorio".`;
 
     // 3. Construir mensajes
     const currentMessages = [
