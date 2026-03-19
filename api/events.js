@@ -29,6 +29,7 @@ function getAuth() {
 function buildEventResource({
   patient, procedure, doctor,
   professionalEmail, patientEmail,
+  resourceEmails = '',
   extraAttendees = [],
   date, startTime, endTime,
   location, notes, title,
@@ -62,6 +63,9 @@ function buildEventResource({
   }
   if (patientEmail) {
     attendees.push({ email: patientEmail, displayName: patient || patientEmail });
+  }
+  for (const re of (resourceEmails || '').split(',').map(e => e.trim()).filter(Boolean)) {
+    if (isPersonalEmail(re)) attendees.push({ email: re });
   }
   for (const att of extraAttendees) {
     if (att.email) {
@@ -121,6 +125,7 @@ export default async function handler(req, res) {
       const {
         resourceCalendarId = 'primary',
         professionalEmail, patientEmail,
+        resourceEmails = '',
         extraAttendees = [],
         patient, procedure, doctor, title,
         date, startTime, endTime,
@@ -135,6 +140,7 @@ export default async function handler(req, res) {
       const resource = buildEventResource({
         patient, procedure, doctor,
         professionalEmail, patientEmail,
+        resourceEmails,
         extraAttendees,
         date, startTime, endTime,
         location, notes, title,
@@ -157,6 +163,7 @@ export default async function handler(req, res) {
       const {
         resourceCalendarId = 'primary',
         professionalEmail, patientEmail,
+        resourceEmails = '',
         extraAttendees = [],
         patient, procedure, doctor, title,
         date, startTime, endTime,
@@ -169,6 +176,7 @@ export default async function handler(req, res) {
       const resource = buildEventResource({
         patient, procedure, doctor,
         professionalEmail, patientEmail,
+        resourceEmails,
         extraAttendees,
         date, startTime, endTime,
         location, notes, title,

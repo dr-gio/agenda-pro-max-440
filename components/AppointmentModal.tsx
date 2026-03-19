@@ -224,6 +224,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
     try {
       const resourceCal        = calendars.find(c => c.id === form.resourceCalendarId);
       const resourceCalendarId = resourceCal?.googleCalendarId || 'primary';
+      const resourceEmails     = resourceCal?.personalEmail || '';
       const professionalEmail  = selectedProfessional?.personalEmail || '';
       const doctorName         = selectedProfessional?.label || '';
 
@@ -240,6 +241,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           resourceCalendarId,
+          resourceEmails:    resourceEmails    || undefined,
           professionalEmail: professionalEmail || undefined,
           patientEmail:      form.patientEmail   || undefined,
           extraAttendees:    extraAttendees.filter(a => a.email.trim()),
