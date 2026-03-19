@@ -17,10 +17,12 @@ function getAuth() {
   let key = process.env.GOOGLE_PRIVATE_KEY;
   if (!email || !key) throw new Error('Faltan credenciales de Google');
   key = key.replace(/^["']|["']$/g, '').replace(/\\n/g, '\n');
+  const subject = process.env.GOOGLE_SUBJECT_EMAIL || 'drgio@440clinic.com';
   return new google.auth.JWT({
     email,
     key,
-    scopes: ['https://www.googleapis.com/auth/calendar.events'],
+    scopes: ['https://www.googleapis.com/auth/calendar'],
+    subject,
   });
 }
 
