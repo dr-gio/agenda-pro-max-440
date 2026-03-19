@@ -1,5 +1,22 @@
 {
     "buildCommand": "npm run build",
     "outputDirectory": "dist",
-    "framework": "vite"
+    "framework": "vite",
+    "functions": {
+        "api/chat.js": {
+            "maxDuration": 60
+        },
+        "api/telegram.js": {
+            "maxDuration": 60
+        },
+        "api/analyze.js": {
+            "maxDuration": 30
+        },
+        "api/events.js": {
+            "maxDuration": 30
+        },
+        "api/calendar.js": {
+            "maxDuration": 30
+        }
+    }
 }

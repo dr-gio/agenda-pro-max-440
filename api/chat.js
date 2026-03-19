@@ -117,7 +117,9 @@ async function listEvents(calendarId, date) {
 export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const anthropicApiKey = process.env.ANTHROPIC_API_KEY;
+  // Normalize API key — remove quotes, whitespace and escape chars
+  const rawKey = process.env.ANTHROPIC_API_KEY || '';
+  const anthropicApiKey = rawKey.replace(/^["']|["']$/g, '').replace(/\\n/g, '').trim();
   if (!anthropicApiKey) return res.status(500).json({ error: 'ANTHROPIC_API_KEY no configurada' });
 
   const { messages = [], calendars = [], selectedDate, userName = 'Usuario', isAdmin = false } = req.body;
@@ -324,6 +326,12 @@ INSTRUCCIONES:
 
   } catch (error) {
     console.error('Chat API Error:', error);
-    return res.status(500).json({ error: 'Error procesando el mensaje', details: error.message });
+    const details = error.message || String(error);
+    const status = details.includes('auth') || details.includes('API key') || details.includes('401') ? 401 : 500;
+    return res.status(status).json({
+      error: 'Error procesando el mensaje',
+      details,
+      hint: status === 401 ? 'Verifica que ANTHROPIC_API_KEY sea válida en Vercel' : undefined
+    });
   }
 }
