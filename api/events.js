@@ -124,6 +124,7 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const {
         resourceCalendarId = 'primary',
+        professionalCalendarId = '',
         professionalEmail, patientEmail,
         resourceEmails = '',
         extraAttendees = [],
@@ -137,7 +138,7 @@ export default async function handler(req, res) {
         return res.status(400).json({ error: 'fecha, hora inicio y hora fin son requeridos' });
       }
 
-      const resource = buildEventResource({
+      const eventBody = buildEventResource({
         patient, procedure, doctor,
         professionalEmail, patientEmail,
         resourceEmails,
@@ -147,12 +148,26 @@ export default async function handler(req, res) {
         isVirtual, createMeet, meetLink,
       });
 
+      const sendUpd = hasInvitees(req.body) ? 'all' : 'none';
+      const confVer = isVirtual && createMeet ? 1 : 0;
+
+      // Escribir en la sala/recurso
       const event = await cal.events.insert({
         calendarId: resourceCalendarId,
-        sendUpdates: hasInvitees(req.body) ? 'all' : 'none',
-        conferenceDataVersion: isVirtual && createMeet ? 1 : 0,
-        resource,
+        sendUpdates: sendUpd,
+        conferenceDataVersion: confVer,
+        resource: eventBody,
       });
+
+      // Escribir también en el calendario específico del profesional (si es distinto)
+      if (professionalCalendarId && professionalCalendarId !== resourceCalendarId) {
+        await cal.events.insert({
+          calendarId: professionalCalendarId,
+          sendUpdates: 'none', // ya se notificó arriba
+          conferenceDataVersion: confVer,
+          resource: { ...eventBody, attendees: undefined }, // sin attendees para evitar duplicados
+        }).catch(() => {}); // no fallar si el calendario del profesional da error
+      }
 
       return res.status(201).json({ success: true, event: event.data });
     }

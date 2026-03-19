@@ -222,11 +222,12 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
     setLoading(true);
 
     try {
-      const resourceCal        = calendars.find(c => c.id === form.resourceCalendarId);
-      const resourceCalendarId = resourceCal?.googleCalendarId || 'primary';
-      const resourceEmails     = resourceCal?.personalEmail || '';
-      const professionalEmail  = selectedProfessional?.personalEmail || '';
-      const doctorName         = selectedProfessional?.label || '';
+      const resourceCal           = calendars.find(c => c.id === form.resourceCalendarId);
+      const resourceCalendarId    = resourceCal?.googleCalendarId || 'primary';
+      const resourceEmails        = resourceCal?.personalEmail || '';
+      const professionalEmail     = selectedProfessional?.personalEmail || '';
+      const professionalCalendarId = selectedProfessional?.googleCalendarId || '';
+      const doctorName            = selectedProfessional?.label || '';
 
       // Ubicación: campo manual o nombre de sala
       const locationFinal = form.isVirtual
@@ -241,6 +242,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           resourceCalendarId,
+          professionalCalendarId: professionalCalendarId || undefined,
           resourceEmails:    resourceEmails    || undefined,
           professionalEmail: professionalEmail || undefined,
           patientEmail:      form.patientEmail   || undefined,
