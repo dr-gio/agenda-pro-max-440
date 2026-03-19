@@ -1,5 +1,138 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { CalendarConfig } from '../types';
+
+// ── Componente de búsqueda de ubicación con autocompletado (OpenStreetMap) ──
+interface LocationResult {
+  display_name: string;
+  lat: string;
+  lon: string;
+}
+
+const LocationSearch: React.FC<{
+  value: string;
+  onChange: (address: string) => void;
+  inputClass: string;
+}> = ({ value, onChange, inputClass }) => {
+  const [query, setQuery]       = useState(value);
+  const [results, setResults]   = useState<LocationResult[]>([]);
+  const [loading, setLoading]   = useState(false);
+  const [open, setOpen]         = useState(false);
+  const [selected, setSelected] = useState(false);
+  const debounceRef             = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapperRef              = useRef<HTMLDivElement>(null);
+
+  // Cerrar al hacer clic fuera
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  // Sincronizar si viene valor externo
+  useEffect(() => { setQuery(value); }, [value]);
+
+  const search = useCallback(async (q: string) => {
+    if (q.length < 4) { setResults([]); setOpen(false); return; }
+    setLoading(true);
+    try {
+      const resp = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=5&addressdetails=1`,
+        { headers: { 'Accept-Language': 'es' } }
+      );
+      const data: LocationResult[] = await resp.json();
+      setResults(data);
+      setOpen(data.length > 0);
+    } catch { setResults([]); }
+    finally { setLoading(false); }
+  }, []);
+
+  const handleChange = (val: string) => {
+    setQuery(val);
+    setSelected(false);
+    onChange(val);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => search(val), 500);
+  };
+
+  const handleSelect = (r: LocationResult) => {
+    setQuery(r.display_name);
+    onChange(r.display_name);
+    setSelected(true);
+    setOpen(false);
+    setResults([]);
+  };
+
+  const mapsUrl = selected || value
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+    : null;
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <div className="relative">
+        <input
+          type="text"
+          placeholder="Buscar dirección o lugar..."
+          className={inputClass + ' pl-10 pr-10'}
+          value={query}
+          onChange={e => handleChange(e.target.value)}
+          autoComplete="off"
+        />
+        {/* ícono pin */}
+        <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+        {/* spinner / check */}
+        <div className="absolute right-3 top-1/2 -translate-y-1/2">
+          {loading
+            ? <span className="w-4 h-4 border-2 border-slate-200 border-t-blue-500 rounded-full animate-spin block" />
+            : selected
+              ? <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
+              : null
+          }
+        </div>
+      </div>
+
+      {/* Dropdown resultados */}
+      {open && results.length > 0 && (
+        <div className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-xl shadow-xl overflow-hidden">
+          {results.map((r, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => handleSelect(r)}
+              className="w-full text-left px-4 py-3 text-xs text-slate-700 hover:bg-blue-50 hover:text-blue-700 border-b border-slate-100 last:border-0 transition-colors flex items-start gap-2"
+            >
+              <svg className="w-3.5 h-3.5 text-slate-400 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+              </svg>
+              <span className="line-clamp-2">{r.display_name}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Link ver en Google Maps */}
+      {query.length > 3 && (
+        <a
+          href={mapsUrl || `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 mt-1.5 text-[10px] text-blue-500 hover:text-blue-700 font-bold transition-colors"
+        >
+          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+          </svg>
+          Ver en Google Maps ↗
+        </a>
+      )}
+    </div>
+  );
+};
 
 interface AppointmentModalProps {
   calendars: CalendarConfig[];
@@ -325,23 +458,15 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
               </button>
             </div>
 
-            {/* Presencial: ubicación manual */}
+            {/* Presencial: búsqueda de ubicación con Google Maps */}
             {!form.isVirtual && (
               <div>
                 <label className={labelClass}>Ubicación / Dirección</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Ej: Sala 1, Consultorio 3, Dirección..."
-                    className={inputClass + " pl-10"}
-                    value={form.location}
-                    onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
-                  />
-                  <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                  </svg>
-                </div>
+                <LocationSearch
+                  value={form.location}
+                  onChange={val => setForm(f => ({ ...f, location: val }))}
+                  inputClass={inputClass}
+                />
               </div>
             )}
 
