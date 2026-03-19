@@ -17,6 +17,9 @@
         },
         "api/calendar.js": {
             "maxDuration": 30
+        },
+        "api/metrics.js": {
+            "maxDuration": 30
         }
     }
 }

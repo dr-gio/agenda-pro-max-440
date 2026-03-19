@@ -56,7 +56,7 @@ function getGoogleAuth() {
   });
 }
 
-function buildEventResource({ patient, procedure, doctor, professionalEmail, date, startTime, endTime, location, notes, agendadoPor }) {
+function buildEventResource({ patient, procedure, doctor, professionalEmail, patientEmail, extraAttendees = [], date, startTime, endTime, location, notes, agendadoPor }) {
   const summary = procedure
     ? `${procedure}${patient ? ' — ' + patient : ''}`
     : patient || 'Nueva cita';
@@ -67,13 +67,23 @@ function buildEventResource({ patient, procedure, doctor, professionalEmail, dat
     : new Date(start.getTime() + 60 * 60 * 1000);
 
   const attendees = [];
+  if (patientEmail) {
+    attendees.push({ email: patientEmail, displayName: patient || patientEmail });
+  }
   if (professionalEmail) {
     attendees.push({ email: professionalEmail, displayName: doctor || professionalEmail });
+  }
+  for (const att of extraAttendees) {
+    if (att.email) attendees.push({ email: att.email, displayName: att.displayName ? `${att.displayName}${att.role ? ' (' + att.role + ')' : ''}` : att.email });
   }
 
   const descriptionParts = [];
   if (patient) descriptionParts.push(`Paciente: ${patient}`);
+  if (patientEmail) descriptionParts.push(`Email paciente: ${patientEmail}`);
   if (doctor) descriptionParts.push(`Médico: ${doctor}`);
+  if (extraAttendees.length > 0) {
+    descriptionParts.push(`Equipo: ${extraAttendees.map(a => `${a.displayName || a.email}${a.role ? ' - ' + a.role : ''}`).join(', ')}`);
+  }
   if (notes) descriptionParts.push(`Notas: ${notes}`);
   descriptionParts.push(`Agendado por: ${agendadoPor || 'App 440 Clinic'}`);
   descriptionParts.push('Fuente: Chatbox IA — 440 Clinic App');
@@ -284,7 +294,14 @@ REGLAS DE DECISIÓN
 - Si falta paciente / fecha / hora / servicio → preguntar, no asumir
 - El EMAIL DEL PACIENTE es OBLIGATORIO para crear la cita → si no lo tienes, preguntar:
   "¿Cuál es el correo electrónico de [nombre]? Se le enviará la invitación."
-- Solo proceder a crear cuando tengas: paciente, email, fecha, hora, servicio y profesional
+- Solo proceder a crear cuando tengas: paciente, email paciente, fecha, hora, servicio y profesional
+- INVITADOS ADICIONALES: para CUALQUIER cita (cirugías, procedimientos menores, consultas, estética u otras),
+  siempre preguntar antes del resumen de confirmación:
+  "¿Necesitas agregar más personas al evento? (anestesiólogo, instrumentadora, circulante, asistente, colega, etc.)
+   Si es así, dame sus nombres, correos y roles. Si no, continuamos."
+  Si el usuario los provee, inclúyelos en extraAttendees con su nombre, email y rol.
+  Si el usuario dice que no aplica o solo quiere al paciente y profesional, procede sin extras.
+  NO bloquear la confirmación si no hay extras — son opcionales en todos los casos.
 
 ##########################################
 FLUJO DE CONFIRMACIÓN OBLIGATORIO
@@ -293,14 +310,14 @@ Antes de llamar create_appointment, SIEMPRE mostrar este resumen y esperar "Sí"
 
 📅 RESUMEN DEL AGENDAMIENTO
 ─────────────────────────
-Paciente   : [Nombre]
-Email      : [Email del paciente]
+Paciente   : [Nombre] · [Email]
 Servicio   : [Tipo]
 Profesional: [Nombre]
 Fecha      : [Fecha]
 Hora       : [Hora inicio] – [Hora fin]
 Calendario : [Calendario principal]
 Recurso    : [Sala/Equipo si aplica]
+Equipo     : [Anestesiólogo / Instrumentadora / etc. si aplican]
 ─────────────────────────
 ¿Confirmas este agendamiento? (Sí / No)
 
@@ -322,23 +339,37 @@ Este asistente NO es un canal de autoagendamiento para pacientes.`;
   const tools = [
     {
       name: 'create_appointment',
-      description: 'Crea una cita en el calendario de la sala/recurso seleccionada. Opcionalmente invita al profesional.',
+      description: 'Crea una cita en el calendario seleccionado e invita a todos los participantes por email.',
       input_schema: {
         type: 'object',
         properties: {
-          calendarId: { type: 'string', description: 'googleCalendarId de la sala/recurso donde se agenda (campo googleCalendarId del calendario)' },
-          calendarLabel: { type: 'string', description: 'Nombre de la sala para mostrar en la confirmación' },
+          calendarId: { type: 'string', description: 'googleCalendarId del calendario donde se agenda' },
+          calendarLabel: { type: 'string', description: 'Nombre del calendario para mostrar en la confirmación' },
           patient: { type: 'string', description: 'Nombre del paciente' },
+          patientEmail: { type: 'string', description: 'Email del paciente — se le envía invitación de Google Calendar' },
           procedure: { type: 'string', description: 'Procedimiento o motivo de la cita' },
           date: { type: 'string', description: 'Fecha en formato YYYY-MM-DD' },
           startTime: { type: 'string', description: 'Hora de inicio HH:MM (24h)' },
           endTime: { type: 'string', description: 'Hora de fin HH:MM (24h), opcional' },
-          doctor: { type: 'string', description: 'Nombre del doctor o profesional, opcional' },
-          professionalEmail: { type: 'string', description: 'Email Google Calendar del profesional para enviarle invitación, opcional' },
+          doctor: { type: 'string', description: 'Nombre del doctor o profesional principal, opcional' },
+          professionalEmail: { type: 'string', description: 'Email Google Calendar del profesional principal, opcional' },
+          extraAttendees: {
+            type: 'array',
+            description: 'Invitados adicionales: anestesiólogo, instrumentadora, circulante, etc.',
+            items: {
+              type: 'object',
+              properties: {
+                email: { type: 'string', description: 'Email del invitado' },
+                displayName: { type: 'string', description: 'Nombre completo del invitado' },
+                role: { type: 'string', description: 'Rol: Anestesiólogo, Instrumentadora, Circulante, etc.' },
+              },
+              required: ['email'],
+            },
+          },
           location: { type: 'string', description: 'Sala o ubicación adicional, opcional' },
           notes: { type: 'string', description: 'Notas adicionales, opcional' },
         },
-        required: ['calendarId', 'calendarLabel', 'patient', 'date', 'startTime'],
+        required: ['calendarId', 'calendarLabel', 'patient', 'patientEmail', 'date', 'startTime'],
       },
     },
     {
@@ -400,10 +431,11 @@ Este asistente NO es un canal de autoagendamiento para pacientes.`;
         let toolResult;
 
         if (toolCall.name === 'create_appointment') {
-          const { calendarId, calendarLabel, patient, procedure, date, startTime, endTime, doctor, professionalEmail, location, notes } = toolCall.input;
+          const { calendarId, calendarLabel, patient, patientEmail, procedure, date, startTime, endTime, doctor, professionalEmail, extraAttendees = [], location, notes } = toolCall.input;
           try {
-            const eventResource = buildEventResource({ patient, procedure, doctor, professionalEmail, date, startTime, endTime, location, notes, agendadoPor: userName });
-            const created = await createEvent(calendarId, eventResource, !!professionalEmail);
+            const eventResource = buildEventResource({ patient, procedure, doctor, professionalEmail, patientEmail, extraAttendees, date, startTime, endTime, location, notes, agendadoPor: userName });
+            const hasAnyAttendee = !!(patientEmail || professionalEmail || extraAttendees.length > 0);
+            const created = await createEvent(calendarId, eventResource, hasAnyAttendee);
             eventCreated = true;
             // Log de trazabilidad
             await logChatAction({ userName, isAdmin, userMessage: messages[messages.length - 1]?.content || '', action: 'crear_cita', calendarLabel, patient, date, success: true });
@@ -419,7 +451,11 @@ Este asistente NO es un canal de autoagendamiento para pacientes.`;
               endTime,
               doctor,
               agendadoPor: userName,
-              professionalInvited: !!professionalEmail,
+              invitados: [
+                patientEmail ? `${patient} (paciente)` : null,
+                professionalEmail ? `${doctor || professionalEmail} (profesional)` : null,
+                ...extraAttendees.map(a => `${a.displayName || a.email}${a.role ? ' - ' + a.role : ''}`),
+              ].filter(Boolean),
             });
           } catch (err) {
             await logChatAction({ userName, isAdmin, userMessage: messages[messages.length - 1]?.content || '', action: 'crear_cita', calendarLabel, patient, date, success: false, error: err.message });

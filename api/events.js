@@ -27,6 +27,7 @@ function getAuth() {
 function buildEventResource({
   patient, procedure, doctor,
   professionalEmail, patientEmail,
+  extraAttendees = [],
   date, startTime, endTime,
   location, notes, title,
   isVirtual, createMeet, meetLink,
@@ -34,23 +35,38 @@ function buildEventResource({
   const summary = [patient, procedure].filter(Boolean).join(' — ') || title || 'Cita Clínica';
 
   // Descripción estructurada
+  const equipoLine = extraAttendees.length > 0
+    ? `Equipo: ${extraAttendees.map(a => `${a.displayName || a.email}${a.role ? ' (' + a.role + ')' : ''}`).join(', ')}`
+    : null;
+
   const descLines = [
-    patient       ? `Paciente: ${patient}`       : null,
+    patient       ? `Paciente: ${patient}`           : null,
     patientEmail  ? `Email paciente: ${patientEmail}` : null,
-    doctor        ? `Médico: ${doctor}`           : null,
-    procedure     ? `Procedimiento: ${procedure}` : null,
-    isVirtual     ? `Modalidad: Virtual`          : `Modalidad: Presencial`,
-    meetLink      ? `Link: ${meetLink}`            : null,
-    notes         ? `Notas: ${notes}`             : null,
+    doctor        ? `Médico: ${doctor}`               : null,
+    equipoLine,
+    procedure     ? `Procedimiento: ${procedure}`     : null,
+    isVirtual     ? `Modalidad: Virtual`              : `Modalidad: Presencial`,
+    meetLink      ? `Link: ${meetLink}`                : null,
+    notes         ? `Notas: ${notes}`                 : null,
   ].filter(Boolean).join('\n');
 
-  // Attendees: profesional + paciente (si tienen email)
+  // Attendees: profesional + paciente + equipo adicional (si tienen email)
   const attendees = [];
   if (professionalEmail) {
     attendees.push({ email: professionalEmail, displayName: doctor || professionalEmail });
   }
   if (patientEmail) {
     attendees.push({ email: patientEmail, displayName: patient || patientEmail });
+  }
+  for (const att of extraAttendees) {
+    if (att.email) {
+      attendees.push({
+        email: att.email,
+        displayName: att.displayName
+          ? `${att.displayName}${att.role ? ' (' + att.role + ')' : ''}`
+          : att.email,
+      });
+    }
   }
 
   // Ubicación final
@@ -93,13 +109,14 @@ export default async function handler(req, res) {
     const cal  = google.calendar({ version: 'v3', auth });
 
     const hasInvitees = (body) =>
-      !!(body?.professionalEmail || body?.patientEmail);
+      !!(body?.professionalEmail || body?.patientEmail || (body?.extraAttendees?.length > 0));
 
     // ── CREAR ──────────────────────────────────────────────────────────────
     if (req.method === 'POST') {
       const {
         resourceCalendarId = 'primary',
         professionalEmail, patientEmail,
+        extraAttendees = [],
         patient, procedure, doctor, title,
         date, startTime, endTime,
         location, notes,
@@ -113,6 +130,7 @@ export default async function handler(req, res) {
       const resource = buildEventResource({
         patient, procedure, doctor,
         professionalEmail, patientEmail,
+        extraAttendees,
         date, startTime, endTime,
         location, notes, title,
         isVirtual, createMeet, meetLink,
@@ -134,6 +152,7 @@ export default async function handler(req, res) {
       const {
         resourceCalendarId = 'primary',
         professionalEmail, patientEmail,
+        extraAttendees = [],
         patient, procedure, doctor, title,
         date, startTime, endTime,
         location, notes,
@@ -145,6 +164,7 @@ export default async function handler(req, res) {
       const resource = buildEventResource({
         patient, procedure, doctor,
         professionalEmail, patientEmail,
+        extraAttendees,
         date, startTime, endTime,
         location, notes, title,
         isVirtual, createMeet, meetLink,

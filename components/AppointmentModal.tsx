@@ -170,8 +170,14 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
     meetLink: '',
     createMeet: true,
   });
+  const [extraAttendees, setExtraAttendees] = useState<{ email: string; displayName: string; role: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  const addAttendee = () => setExtraAttendees(a => [...a, { email: '', displayName: '', role: '' }]);
+  const removeAttendee = (i: number) => setExtraAttendees(a => a.filter((_, idx) => idx !== i));
+  const updateAttendee = (i: number, field: 'email' | 'displayName' | 'role', val: string) =>
+    setExtraAttendees(a => a.map((att, idx) => idx === i ? { ...att, [field]: val } : att));
 
   useEffect(() => {
     if (editEvent) {
@@ -234,6 +240,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
           resourceCalendarId,
           professionalEmail: professionalEmail || undefined,
           patientEmail:      form.patientEmail   || undefined,
+          extraAttendees:    extraAttendees.filter(a => a.email.trim()),
           patient:           form.patient,
           procedure:         form.procedure,
           doctor:            doctorName,
@@ -250,7 +257,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
 
       if (!res.ok) {
         const data = await res.json();
-        throw new Error(data.error || 'Error al guardar la cita');
+        throw new Error((data.details || data.error) || 'Error al guardar la cita');
       }
 
       onSaved();
@@ -394,6 +401,92 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
             </div>
           </div>
 
+          {/* INVITADOS ADICIONALES */}
+          <div className="p-4 bg-amber-50/60 border border-amber-100 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest">
+                Invitados adicionales
+                <span className="ml-2 normal-case tracking-normal text-amber-500 font-medium">(anestesiólogo, instrumentadora, etc.)</span>
+              </p>
+              <button
+                type="button"
+                onClick={addAttendee}
+                className="flex items-center gap-1 px-3 py-1.5 bg-amber-500 text-white text-[10px] font-black uppercase tracking-widest rounded-lg hover:bg-amber-600 transition-all"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4" />
+                </svg>
+                Agregar
+              </button>
+            </div>
+
+            {extraAttendees.length === 0 && (
+              <p className="text-[11px] text-amber-400 text-center py-1">
+                Sin invitados adicionales — haz clic en Agregar para añadir equipo quirúrgico u otros
+              </p>
+            )}
+
+            {extraAttendees.map((att, i) => (
+              <div key={i} className="bg-white border border-amber-100 rounded-xl p-3 space-y-2">
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">Invitado #{i + 1}</span>
+                  <button
+                    type="button"
+                    onClick={() => removeAttendee(i)}
+                    className="p-1 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className={labelClass}>Nombre</label>
+                    <input
+                      type="text"
+                      placeholder="Nombre completo"
+                      className={inputClass + " text-xs py-2"}
+                      value={att.displayName}
+                      onChange={e => updateAttendee(i, 'displayName', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className={labelClass}>Rol</label>
+                    <input
+                      type="text"
+                      placeholder="Anestesiólogo, Instrumentadora..."
+                      className={inputClass + " text-xs py-2"}
+                      value={att.role}
+                      onChange={e => updateAttendee(i, 'role', e.target.value)}
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className={labelClass}>
+                    Email
+                    <span className="ml-1 normal-case tracking-normal text-slate-400 font-medium">(recibirá invitación)</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      placeholder="correo@email.com"
+                      className={inputClass + " pl-9 text-xs py-2"}
+                      value={att.email}
+                      onChange={e => updateAttendee(i, 'email', e.target.value)}
+                    />
+                    <svg className="w-3.5 h-3.5 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  {att.email && (
+                    <p className="text-[10px] text-emerald-500 mt-1 font-medium">✓ Recibirá invitación en su correo</p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
           {/* PROCEDIMIENTO */}
           <div>
             <label className={labelClass}>Procedimiento / Motivo</label>
@@ -529,7 +622,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
           </div>
 
           {/* RESUMEN */}
-          {(form.patient || form.resourceCalendarId || form.professionalId) && (
+          {(form.patient || form.resourceCalendarId || form.professionalId || extraAttendees.length > 0) && (
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-[11px] text-slate-500 space-y-1">
               {form.patient && <p>👤 <b>Paciente:</b> {form.patient}{form.patientEmail ? ` — ${form.patientEmail}` : ''}</p>}
               {form.resourceCalendarId && <p>🏥 <b>Sala:</b> {resources.find(r => r.id === form.resourceCalendarId)?.label || '—'}</p>}
@@ -539,6 +632,11 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
                     ? ' — recibirá invitación'
                     : ''}
                 </p>
+              )}
+              {extraAttendees.filter(a => a.email).length > 0 && (
+                <p>👥 <b>Equipo:</b> {extraAttendees.filter(a => a.email).map(a =>
+                  `${a.displayName || a.email}${a.role ? ' (' + a.role + ')' : ''}`
+                ).join(', ')}</p>
               )}
               {form.isVirtual
                 ? <p>💻 <b>Modalidad:</b> Virtual {form.createMeet ? '(Google Meet automático)' : form.meetLink ? `— ${form.meetLink}` : ''}</p>

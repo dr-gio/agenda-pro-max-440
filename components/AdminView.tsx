@@ -13,7 +13,7 @@ interface AdminViewProps {
 const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
   const [calendars, setCalendars] = useState<CalendarConfig[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendars' | 'settings' | 'activity' | 'team'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendars' | 'settings' | 'activity' | 'team' | 'metrics'>('dashboard');
   const [activityLogs, setActivityLogs] = useState<any[]>([]);
   const [loadingActivity, setLoadingActivity] = useState(false);
   const [staffList, setStaffList] = useState<any[]>([]);
@@ -29,6 +29,61 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
   const [showHistory, setShowHistory] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Metrics state
+  const [metricsData, setMetricsData] = useState<any>(null);
+  const [loadingMetrics, setLoadingMetrics] = useState(false);
+  const [metricsError, setMetricsError] = useState('');
+  const [metricsPeriod, setMetricsPeriod] = useState<'week' | 'month' | 'quarter'>('month');
+
+  const getMetricsRange = (period: 'week' | 'month' | 'quarter') => {
+    const now = new Date();
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const fmt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    if (period === 'week') {
+      const day = now.getDay();
+      const mon = new Date(now); mon.setDate(now.getDate() - (day === 0 ? 6 : day - 1));
+      const sun = new Date(mon); sun.setDate(mon.getDate() + 6);
+      return { startDate: fmt(mon), endDate: fmt(sun) };
+    }
+    if (period === 'month') {
+      return { startDate: fmt(new Date(now.getFullYear(), now.getMonth(), 1)), endDate: fmt(new Date(now.getFullYear(), now.getMonth() + 1, 0)) };
+    }
+    // quarter
+    const q = Math.floor(now.getMonth() / 3);
+    return { startDate: fmt(new Date(now.getFullYear(), q * 3, 1)), endDate: fmt(new Date(now.getFullYear(), q * 3 + 3, 0)) };
+  };
+
+  const loadMetrics = async (period: 'week' | 'month' | 'quarter' = metricsPeriod) => {
+    setLoadingMetrics(true);
+    setMetricsError('');
+    try {
+      const { startDate, endDate } = getMetricsRange(period);
+      const res = await fetch(`/api/metrics?startDate=${startDate}&endDate=${endDate}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Error');
+      setMetricsData(data);
+    } catch (e: any) {
+      setMetricsError(e.message);
+    } finally {
+      setLoadingMetrics(false);
+    }
+  };
+
+  const exportMetricsCSV = () => {
+    if (!metricsData?.events?.length) return;
+    const headers = ['Fecha', 'Inicio', 'Fin', 'Duración (min)', 'Calendario', 'Tipo', 'Procedimiento', 'Paciente'];
+    const rows = metricsData.events.map((e: any) => [
+      e.day, e.start, e.end, e.durationMin, e.calendar, e.calendarType, e.procedure, e.patient
+    ]);
+    const csv = [headers, ...rows].map(r => r.map((c: any) => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+    const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url;
+    const { startDate, endDate } = getMetricsRange(metricsPeriod);
+    a.download = `440clinic-metricas-${startDate}-${endDate}.csv`;
+    a.click(); URL.revokeObjectURL(url);
+  };
 
   const loadActivity = async () => {
     setLoadingActivity(true);
@@ -269,6 +324,13 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
               ACTIVIDAD
+            </button>
+            <button
+              onClick={() => { setActiveTab('metrics'); loadMetrics(metricsPeriod); }}
+              className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'metrics' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"></path><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"></path></svg>
+              MÉTRICAS
             </button>
           </div>
         </div>
@@ -773,6 +835,166 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
                 </tbody>
               </table>
             </div>
+          )}
+        </div>
+      ) : activeTab === 'metrics' ? (
+        <div className="space-y-8">
+          {/* Header + period selector */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+            <div>
+              <h2 className="text-2xl font-black text-slate-900">Métricas Operativas</h2>
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Citas · Ocupación · Productividad</p>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="flex bg-slate-200/50 p-1 rounded-xl gap-1">
+                {(['week', 'month', 'quarter'] as const).map(p => (
+                  <button
+                    key={p}
+                    onClick={() => { setMetricsPeriod(p); loadMetrics(p); }}
+                    className={`px-4 py-1.5 rounded-lg text-xs font-black transition-all ${metricsPeriod === p ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                  >
+                    {p === 'week' ? 'SEMANA' : p === 'month' ? 'MES' : 'TRIMESTRE'}
+                  </button>
+                ))}
+              </div>
+              <button
+                onClick={exportMetricsCSV}
+                disabled={!metricsData?.events?.length}
+                className="flex items-center gap-2 px-5 py-2.5 bg-emerald-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                Exportar CSV
+              </button>
+            </div>
+          </div>
+
+          {loadingMetrics ? (
+            <div className="text-center py-24 text-slate-400 font-bold uppercase tracking-widest text-xs">Cargando métricas...</div>
+          ) : metricsError ? (
+            <div className="text-center py-24 text-red-400 font-bold text-sm">{metricsError}</div>
+          ) : !metricsData ? (
+            <div className="text-center py-24 text-slate-400 font-bold uppercase tracking-widest text-xs">Selecciona un período para ver métricas</div>
+          ) : (
+            <>
+              {/* Stat cards */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Total Citas</span>
+                  <div className="text-4xl font-black text-slate-900">{metricsData.total}</div>
+                  <p className="text-xs text-slate-500 mt-2">{metricsData.period?.startDate} → {metricsData.period?.endDate}</p>
+                </div>
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Horas Ocupación</span>
+                  <div className="text-4xl font-black text-blue-600">
+                    {Math.round(Object.values(metricsData.byCalendar as Record<string, any>).reduce((acc: number, c: any) => acc + (c.minutes || 0), 0) / 60)}h
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">En todas las salas</p>
+                </div>
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Top Procedimiento</span>
+                  <div className="text-lg font-black text-slate-900 leading-tight mt-1 truncate">
+                    {metricsData.byProcedure?.[0]?.name || '—'}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">{metricsData.byProcedure?.[0]?.count || 0} citas</p>
+                </div>
+                <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest block mb-1">Doctor + Activo</span>
+                  <div className="text-lg font-black text-slate-900 leading-tight mt-1 truncate">
+                    {Object.entries(metricsData.byDoctor as Record<string, any>).sort((a, b) => b[1].count - a[1].count)[0]?.[0] || '—'}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-2">
+                    {Object.values(metricsData.byDoctor as Record<string, any>).sort((a: any, b: any) => b.count - a.count)[0]?.count || 0} citas
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                {/* Ocupación por sala */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="p-6 border-b border-slate-100">
+                    <h3 className="font-black text-slate-900 text-sm uppercase tracking-wide">Ocupación por Sala / Recurso</h3>
+                  </div>
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-50">
+                        <th className="text-left px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Sala</th>
+                        <th className="text-right px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Citas</th>
+                        <th className="text-right px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Horas</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {Object.entries(metricsData.byCalendar as Record<string, any>)
+                        .sort((a, b) => b[1].count - a[1].count)
+                        .map(([name, data]: [string, any]) => (
+                          <tr key={name} className="border-b border-slate-50 hover:bg-slate-50">
+                            <td className="px-6 py-3 text-xs font-bold text-slate-700">{name}</td>
+                            <td className="px-6 py-3 text-xs font-black text-slate-900 text-right">{data.count}</td>
+                            <td className="px-6 py-3 text-xs text-slate-500 text-right">{Math.round(data.minutes / 60)}h</td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Productividad por doctor */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="p-6 border-b border-slate-100">
+                    <h3 className="font-black text-slate-900 text-sm uppercase tracking-wide">Productividad por Doctor</h3>
+                  </div>
+                  {Object.keys(metricsData.byDoctor).length === 0 ? (
+                    <p className="text-center py-10 text-xs text-slate-400 font-bold uppercase tracking-widest">Sin calendarios de tipo "professional"</p>
+                  ) : (
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-50">
+                          <th className="text-left px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Doctor</th>
+                          <th className="text-right px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Citas</th>
+                          <th className="text-right px-6 py-3 text-[10px] font-black text-slate-400 uppercase tracking-widest">Horas</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {Object.entries(metricsData.byDoctor as Record<string, any>)
+                          .sort((a, b) => b[1].count - a[1].count)
+                          .map(([name, data]: [string, any]) => (
+                            <tr key={name} className="border-b border-slate-50 hover:bg-slate-50">
+                              <td className="px-6 py-3 text-xs font-bold text-slate-700">{name}</td>
+                              <td className="px-6 py-3 text-xs font-black text-blue-600 text-right">{data.count}</td>
+                              <td className="px-6 py-3 text-xs text-slate-500 text-right">{Math.round(data.minutes / 60)}h</td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  )}
+                </div>
+
+                {/* Procedimientos más frecuentes */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
+                  <div className="p-6 border-b border-slate-100">
+                    <h3 className="font-black text-slate-900 text-sm uppercase tracking-wide">Procedimientos Frecuentes</h3>
+                  </div>
+                  {metricsData.byProcedure.length === 0 ? (
+                    <p className="text-center py-10 text-xs text-slate-400 font-bold uppercase tracking-widest">Sin datos</p>
+                  ) : (
+                    <div className="p-4 space-y-2 max-h-80 overflow-y-auto">
+                      {metricsData.byProcedure.map((p: any, i: number) => (
+                        <div key={p.name} className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className="text-[10px] font-black text-slate-300 w-5 text-right flex-shrink-0">{i + 1}</span>
+                            <span className="text-xs font-bold text-slate-700 truncate">{p.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <div className="w-16 bg-slate-100 rounded-full h-1.5">
+                              <div className="bg-blue-500 h-1.5 rounded-full" style={{ width: `${Math.round((p.count / metricsData.byProcedure[0].count) * 100)}%` }}></div>
+                            </div>
+                            <span className="text-xs font-black text-slate-900 w-6 text-right">{p.count}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
           )}
         </div>
       ) : null}
