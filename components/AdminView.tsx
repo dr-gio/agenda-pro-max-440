@@ -22,7 +22,7 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
   const [staffError, setStaffError] = useState('');
   const [staffSaving, setStaffSaving] = useState(false);
   const [form, setForm] = useState<Partial<CalendarConfig>>({
-    id: '', label: '', type: 'resource', active: true, showDetails: true, sort: 1, timezone: TIMEZONE, googleCalendarId: '', avatarUrl: ''
+    id: '', label: '', type: 'resource', active: true, showDetails: true, sort: 1, timezone: TIMEZONE, googleCalendarId: '', personalEmail: '', avatarUrl: ''
   });
   const [apiKey, setApiKey] = useState('');
   const [aiHistory, setAiHistory] = useState<any[]>([]);
@@ -197,6 +197,7 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
       sort: calendars.length + 1,
       timezone: TIMEZONE,
       googleCalendarId: '',
+      personalEmail: '',
       avatarUrl: ''
     });
   };
@@ -481,6 +482,29 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
                     onChange={(e) => setForm({ ...form, googleCalendarId: e.target.value })}
                   />
                 </div>
+                {(form.type === 'professional' || form.type === 'aesthetic') && (
+                  <div>
+                    <label className="block text-[10px] font-black uppercase text-emerald-600 mb-2 tracking-widest">
+                      Email Personal
+                      <span className="ml-2 normal-case tracking-normal text-slate-400 font-medium">(para recibir invitaciones de citas)</span>
+                    </label>
+                    <div className="relative">
+                      <input
+                        type="email"
+                        placeholder="ej: drgio@440clinic.com"
+                        className="w-full px-4 py-3 pl-10 bg-emerald-50 border border-emerald-100 rounded-xl focus:ring-4 focus:ring-emerald-500/10 focus:border-emerald-500 outline-none text-slate-900 transition-all font-medium"
+                        value={form.personalEmail || ''}
+                        onChange={(e) => setForm({ ...form, personalEmail: e.target.value })}
+                      />
+                      <svg className="w-4 h-4 text-emerald-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    {form.personalEmail && (
+                      <p className="text-[10px] text-emerald-600 mt-1 font-medium">✓ Recibirá invitación en su correo cuando se agende una cita</p>
+                    )}
+                  </div>
+                )}
                 <div>
                   <label className="block text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">Nombre Visible</label>
                   <input

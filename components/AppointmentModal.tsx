@@ -208,6 +208,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
 
   const selectedProfessional = professionals.find(p => p.id === form.professionalId) || null;
   const isPersonalEmail = (e?: string) => !!e && !e.includes('@group.calendar.google.com') && !e.includes('@resource.calendar.google.com');
+  const profEmail = selectedProfessional?.personalEmail || '';
 
   const handleStartTimeChange = (val: string) => {
     const [h, m] = val.split(':').map(Number);
@@ -223,7 +224,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
     try {
       const resourceCal        = calendars.find(c => c.id === form.resourceCalendarId);
       const resourceCalendarId = resourceCal?.googleCalendarId || 'primary';
-      const professionalEmail  = selectedProfessional?.googleCalendarId || '';
+      const professionalEmail  = selectedProfessional?.personalEmail || '';
       const doctorName         = selectedProfessional?.label || '';
 
       // Ubicación: campo manual o nombre de sala
@@ -333,7 +334,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
             <div>
               <label className={labelClass}>
                 <span className="text-purple-600">Profesional / Médico</span>
-                {isPersonalEmail(selectedProfessional?.googleCalendarId) && (
+                {profEmail && (
                   <span className="ml-2 text-emerald-500 normal-case tracking-normal">✓ Recibirá invitación</span>
                 )}
               </label>
@@ -349,14 +350,14 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
                   </option>
                 ))}
               </select>
-              {selectedProfessional && isPersonalEmail(selectedProfessional.googleCalendarId) && (
+              {selectedProfessional && profEmail && (
                 <p className="text-[10px] text-purple-500 mt-1 font-medium">
-                  📧 Invitación a: {selectedProfessional.googleCalendarId}
+                  📧 Invitación a: {profEmail}
                 </p>
               )}
-              {selectedProfessional && !isPersonalEmail(selectedProfessional.googleCalendarId) && (
+              {selectedProfessional && !profEmail && (
                 <p className="text-[10px] text-amber-500 mt-1 font-medium">
-                  ⚠️ Sin email personal configurado — la cita se crea pero el profesional no recibirá invitación por correo.
+                  ⚠️ Sin email personal — ve a Configuración → Calendarios para añadirlo.
                 </p>
               )}
             </div>
@@ -629,7 +630,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
               {form.resourceCalendarId && <p>🏥 <b>Sala:</b> {resources.find(r => r.id === form.resourceCalendarId)?.label || '—'}</p>}
               {form.professionalId && (
                 <p>👨‍⚕️ <b>Profesional:</b> {selectedProfessional?.label || '—'}
-                  {isPersonalEmail(selectedProfessional?.googleCalendarId) ? ' — recibirá invitación' : ''}
+                  {profEmail ? ' — recibirá invitación' : ''}
                 </p>
               )}
               {extraAttendees.filter(a => a.email).length > 0 && (

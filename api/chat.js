@@ -145,7 +145,7 @@ export default async function handler(req, res) {
 
   const calsContext = [
     resourceCals.length > 0 ? `SALAS/RECURSOS:\n${resourceCals.map(c => `  - "${c.label}" (id: ${c.id}, googleCalendarId: ${c.googleCalendarId || 'N/A'})`).join('\n')}` : '',
-    professionalCals.length > 0 ? `PROFESIONALES:\n${professionalCals.map(c => `  - "${c.label}" (id: ${c.id}, email: ${c.googleCalendarId !== 'primary' ? c.googleCalendarId : 'sin email configurado'})`).join('\n')}` : '',
+    professionalCals.length > 0 ? `PROFESIONALES:\n${professionalCals.map(c => `  - "${c.label}" (id: ${c.id}, email para invitación: ${c.personalEmail || 'sin email configurado'})`).join('\n')}` : '',
   ].filter(Boolean).join('\n\n');
 
   const systemPrompt = `##########################################
