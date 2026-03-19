@@ -126,7 +126,8 @@ RESPONDE ÚNICAMENTE con JSON válido (sin markdown):
 ##########################################
 {
   "accion": "crear" | "editar" | "eliminar" | "consultar" | "bloqueo" | "desconocido",
-  "paciente": "Nombre del paciente o null",
+  "paciente": "Nombre completo del paciente o null",
+  "email_paciente": "Correo electrónico del paciente o null",
   "procedimiento": "Tipo de servicio normalizado o null",
   "calendario_principal": "Nombre exacto del calendario MED/EST/COM o null",
   "recurso": "Nombre del RES correspondiente o null",
@@ -147,6 +148,8 @@ REGLAS:
 - "mañana" / "lunes" / días relativos → calcular fecha real desde hoy ${today}
 - Si faltan datos clave → listarlos en datos_faltantes y preguntar en respuesta_sugerida
 - No asumir profesional si no se menciona → pedir al usuario
+- El email del paciente es OBLIGATORIO para crear una cita. Si no se menciona → pedirlo
+- Si el usuario ya dio nombre, fecha y hora pero no email → preguntar: "¿Cuál es el correo electrónico de [nombre]?"
 - Normalizar procedimientos: "hiperbárica"→"Cámara Hiperbárica", "post-op"→"Postoperatorio", "hydra"→"Hydrafacial"
 - Para bloqueos → usar AUX correspondiente, no MED`;
 
@@ -191,46 +194,55 @@ async function getCalendarId(intent) {
 }
 
 function buildEventResource(intent) {
-  const title = [intent.paciente, intent.procedimiento].filter(Boolean).join(' — ') || 'Cita Clínica';
+  const title = intent.procedimiento && intent.paciente
+    ? `${intent.procedimiento} – ${intent.paciente}`
+    : [intent.paciente, intent.procedimiento].filter(Boolean).join(' — ') || 'Cita Clínica';
 
-  const dateStr = intent.fecha || new Date().toISOString().split('T')[0];
+  const dateStr   = intent.fecha || new Date().toISOString().split('T')[0];
   const startTime = intent.hora_inicio || '09:00';
-  const endTime = intent.hora_fin || (() => {
+  const endTime   = intent.hora_fin || (() => {
     const [h, m] = startTime.split(':').map(Number);
     return `${String(h + 1).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   })();
 
   const description = [
-    intent.paciente ? `Paciente: ${intent.paciente}` : null,
-    intent.medico ? `Médico: ${intent.medico}` : null,
-    intent.procedimiento ? `Procedimiento: ${intent.procedimiento}` : null,
-    intent.notas ? `Notas: ${intent.notas}` : null,
+    intent.paciente       ? `Paciente: ${intent.paciente}`           : null,
+    intent.email_paciente ? `Email: ${intent.email_paciente}`         : null,
+    intent.medico         ? `Médico: ${intent.medico}`                : null,
+    intent.procedimiento  ? `Procedimiento: ${intent.procedimiento}`  : null,
+    intent.notas          ? `Notas: ${intent.notas}`                  : null,
     '📱 Agendado via Bot de Telegram — 440 Clinic',
   ].filter(Boolean).join('\n');
+
+  // Invitar al paciente por email si se proporcionó
+  const attendees = [];
+  if (intent.email_paciente) {
+    attendees.push({
+      email: intent.email_paciente,
+      displayName: intent.paciente || intent.email_paciente,
+    });
+  }
 
   return {
     summary: title,
     location: intent.lugar || '',
     description,
-    start: {
-      dateTime: `${dateStr}T${startTime}:00`,
-      timeZone: 'America/Bogota',
-    },
-    end: {
-      dateTime: `${dateStr}T${endTime}:00`,
-      timeZone: 'America/Bogota',
-    },
+    start: { dateTime: `${dateStr}T${startTime}:00`, timeZone: 'America/Bogota' },
+    end:   { dateTime: `${dateStr}T${endTime}:00`,   timeZone: 'America/Bogota' },
+    ...(attendees.length > 0 && { attendees }),
+    ...(attendees.length > 0 && { guestsCanSeeOtherGuests: false }),
   };
 }
 
 async function crearEvento(intent) {
-  const auth = getGoogleAuth();
+  const auth       = getGoogleAuth();
   const calendarId = await getCalendarId(intent);
-  const cal = google.calendar({ version: 'v3', auth });
+  const cal        = google.calendar({ version: 'v3', auth });
 
   const event = await cal.events.insert({
     calendarId,
-    resource: buildEventResource(intent),
+    resource:    buildEventResource(intent),
+    sendUpdates: intent.email_paciente ? 'all' : 'none',
   });
 
   return { eventId: event.data.id, htmlLink: event.data.htmlLink, calendarId };
@@ -336,11 +348,25 @@ export default async function handler(req, res) {
     // 2. Ejecutar acción en Google Calendar
     switch (intent.accion) {
       case 'crear': {
-        if (!intent.fecha || !intent.hora_inicio) {
-          replyText = '⚠️ Necesito la <b>fecha</b> y la <b>hora</b> para crear la cita. Por ejemplo:\n"Agenda a María García mañana a las 10am para hiperbárica"';
+        if (!intent.paciente) {
+          replyText = '⚠️ ¿Cuál es el <b>nombre completo</b> de la paciente?';
+        } else if (!intent.fecha || !intent.hora_inicio) {
+          replyText = `⚠️ ¿Para qué <b>fecha y hora</b> agendo a <b>${intent.paciente}</b>?\nEjemplo: "el lunes a las 10am"`;
+        } else if (!intent.procedimiento) {
+          replyText = `⚠️ ¿Qué <b>servicio o procedimiento</b> necesita ${intent.paciente}?`;
+        } else if (!intent.email_paciente) {
+          replyText = `📧 ¿Cuál es el <b>correo electrónico</b> de ${intent.paciente}?\nSe le enviará la invitación de la cita.`;
         } else {
           calendarResult = await crearEvento(intent);
-          replyText = intent.respuesta_sugerida || `✅ <b>Cita creada</b>\n👤 ${intent.paciente || 'Sin nombre'}\n📅 ${intent.fecha} a las ${intent.hora_inicio}\n🏥 ${intent.procedimiento || 'Cita general'}`;
+          const emailConfirm = intent.email_paciente
+            ? `\n📧 Invitación enviada a: ${intent.email_paciente}` : '';
+          replyText = intent.respuesta_sugerida ||
+            `✅ <b>Cita creada exitosamente</b>\n\n` +
+            `👤 <b>Paciente:</b> ${intent.paciente}\n` +
+            `🏥 <b>Servicio:</b> ${intent.procedimiento}\n` +
+            `📅 <b>Fecha:</b> ${intent.fecha}\n` +
+            `🕐 <b>Hora:</b> ${intent.hora_inicio} – ${intent.hora_fin || ''}` +
+            emailConfirm;
         }
         break;
       }
