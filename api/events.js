@@ -51,20 +51,21 @@ function buildEventResource({
     notes         ? `Notas: ${notes}`                 : null,
   ].filter(Boolean).join('\n');
 
-  // Attendees: profesional + paciente + equipo adicional (si tienen email personal)
-  // Los @group.calendar.google.com son IDs de calendario, NO emails — no se pueden invitar
+  // Attendees: solo externos (paciente + equipo adicional)
+  // El profesional NO se agrega como attendee — el evento llega a su calendario
+  // vía dual-write (professionalCalendarId). DWD requerido para invitar emails del dominio.
   const isPersonalEmail = (e) => e && !e.includes('@group.calendar.google.com') && !e.includes('@resource.calendar.google.com');
 
   const attendees = [];
-  if (isPersonalEmail(professionalEmail)) {
-    attendees.push({ email: professionalEmail, displayName: doctor || professionalEmail });
-  }
+  // Paciente (externo — no requiere DWD)
   if (patientEmail) {
     attendees.push({ email: patientEmail, displayName: patient || patientEmail });
   }
+  // Responsables del recurso (emails de personas externas al dominio)
   for (const re of (resourceEmails || '').split(',').map(e => e.trim()).filter(Boolean)) {
     if (isPersonalEmail(re)) attendees.push({ email: re });
   }
+  // Equipo adicional
   for (const att of extraAttendees) {
     if (att.email) {
       attendees.push({
