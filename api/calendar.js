@@ -8,7 +8,7 @@ export default async function handler(req, res) {
         // SECURITY: Use environment variables. Never hardcode keys.
         const SCOPES = ['https://www.googleapis.com/auth/calendar.readonly'];
         // Robustly handle the private key from various ENV formats
-        const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+        const email = (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '').trim();
         let key = process.env.GOOGLE_PRIVATE_KEY;
 
         console.log('--- Env Debug ---');
