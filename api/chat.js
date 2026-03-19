@@ -179,9 +179,10 @@ ESTRUCTURA DE CALENDARIOS
    - RES – EQUIPO – TENSAMAX
    - RES – EQUIPO – RETRACCION
 5. AUXILIARES (AUX)
-   - AUX – BLOQUEOS – DRGIO
-   - AUX – BLOQUEOS – SHARON
-   - AUX – AUDIOVISUAL – 440
+   - AUX – BLOQUEOS – DRGIO        → bloqueos personales del Dr. Gio
+   - AUX – BLOQUEOS – SHARON       → bloqueos personales de Sharon
+   - AUX – AUDIOVISUAL – 440       → agenda del equipo audiovisual para grabaciones
+     (cirugías, consultas, procedimientos que se van a filmar/fotografiar)
 
 ##########################################
 REGLAS FUNDAMENTALES
@@ -194,8 +195,10 @@ REGLAS FUNDAMENTALES
 ##########################################
 REGLA CRÍTICA
 ##########################################
-- AUX SÍ se utiliza para bloqueos internos
-- AUX NO se utiliza para agendar pacientes. NUNCA.
+- AUX – BLOQUEOS – DRGIO / SHARON → solo bloqueos internos, NUNCA pacientes
+- AUX – AUDIOVISUAL – 440 → se usa para coordinar al equipo audiovisual
+  cuando se necesita grabar una cirugía, consulta o procedimiento.
+  Se invita al equipo al evento correspondiente (no es un bloqueo).
 - RES nunca es el calendario PRINCIPAL de un evento de paciente
 
 ##########################################

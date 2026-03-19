@@ -239,10 +239,17 @@ ESTÉTICA (EST):
 COMERCIAL (COM):
 - COM – ASESORA – LUCERO | COM – ASESORA – SARA  → 30 min
 
-AUXILIARES (AUX — solo bloqueos, NUNCA pacientes):
-- AUX – BLOQUEOS – DRGIO | AUX – BLOQUEOS – SHARON | AUX – AUDIOVISUAL – 440
+AUXILIARES (AUX):
+- AUX – BLOQUEOS – DRGIO    → bloqueos internos Dr. Gio (NUNCA pacientes)
+- AUX – BLOQUEOS – SHARON   → bloqueos internos Sharon (NUNCA pacientes)
+- AUX – AUDIOVISUAL – 440   → agenda del equipo audiovisual para grabaciones
+  (se invita al equipo cuando se va a filmar una cirugía, consulta o procedimiento)
 
-REGLA CRÍTICA: RES y AUX NUNCA son el calendario principal de citas de pacientes.
+REGLA CRÍTICA:
+- RES: NUNCA es el calendario principal de una cita de paciente (es recurso secundario)
+- AUX – BLOQUEOS: solo para bloqueos internos, NUNCA pacientes
+- AUX – AUDIOVISUAL – 440: SÍ se agenda aquí cuando se va a grabar contenido;
+  se invita al equipo audiovisual a la cirugía/consulta/procedimiento correspondiente
 
 ##########################################
 HORARIO: L-V 8:00-18:00 | Sáb 8:00-13:00 | Dom CERRADO
