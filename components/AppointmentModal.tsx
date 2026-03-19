@@ -19,20 +19,23 @@ interface AppointmentModalProps {
 const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose, onSaved, editEvent }) => {
   const today = new Date().toISOString().split('T')[0];
 
-  // Separar salas/recursos de profesionales
-  const resources  = calendars.filter(c => c.active && (c.type === 'resource' || c.type === 'general'));
+  const resources     = calendars.filter(c => c.active && (c.type === 'resource' || c.type === 'general'));
   const professionals = calendars.filter(c => c.active && (c.type === 'professional' || c.type === 'aesthetic'));
 
   const [form, setForm] = useState({
     resourceCalendarId: resources[0]?.id || '',
-    professionalId: '',          // ID interno del profesional seleccionado
+    professionalId: '',
     patient: '',
+    patientEmail: '',
     procedure: '',
     date: today,
     startTime: '09:00',
     endTime: '10:00',
     location: '',
     notes: '',
+    isVirtual: false,
+    meetLink: '',
+    createMeet: true,
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -40,9 +43,9 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
   useEffect(() => {
     if (editEvent) {
       const start = new Date(editEvent.start);
-      const end = new Date(editEvent.end);
-      const pad = (n: number) => String(n).padStart(2, '0');
-      const desc = editEvent.description || '';
+      const end   = new Date(editEvent.end);
+      const pad   = (n: number) => String(n).padStart(2, '0');
+      const desc  = editEvent.description || '';
       const getField = (label: string) => {
         const match = desc.match(new RegExp(`${label}: (.+)`));
         return match ? match[1].trim() : '';
@@ -52,24 +55,23 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
       setForm(f => ({
         ...f,
         resourceCalendarId: editEvent.calendarId || resources[0]?.id || '',
-        patient: getField('Paciente') || titleParts[0] || '',
-        procedure: getField('Procedimiento') || titleParts[1] || '',
-        date: editEvent.start.split('T')[0],
-        startTime: `${pad(start.getHours())}:${pad(start.getMinutes())}`,
-        endTime: `${pad(end.getHours())}:${pad(end.getMinutes())}`,
-        location: editEvent.location || '',
-        notes: getField('Notas') || '',
+        patient:      getField('Paciente')      || titleParts[0] || '',
+        patientEmail: getField('Email paciente') || '',
+        procedure:    getField('Procedimiento') || titleParts[1] || '',
+        date:         editEvent.start.split('T')[0],
+        startTime:    `${pad(start.getHours())}:${pad(start.getMinutes())}`,
+        endTime:      `${pad(end.getHours())}:${pad(end.getMinutes())}`,
+        location:     editEvent.location || '',
+        notes:        getField('Notas') || '',
       }));
     }
   }, [editEvent]);
 
-  // Profesional seleccionado (objeto completo)
   const selectedProfessional = professionals.find(p => p.id === form.professionalId) || null;
 
-  // Auto hora fin (+1h)
   const handleStartTimeChange = (val: string) => {
     const [h, m] = val.split(':').map(Number);
-    const endH = String(h + 1 > 23 ? 23 : h + 1).padStart(2, '0');
+    const endH   = String(h + 1 > 23 ? 23 : h + 1).padStart(2, '0');
     setForm(f => ({ ...f, startTime: val, endTime: `${endH}:${String(m).padStart(2, '0')}` }));
   };
 
@@ -79,15 +81,17 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
     setLoading(true);
 
     try {
-      // Obtener googleCalendarId del recurso seleccionado
-      const resourceCal = calendars.find(c => c.id === form.resourceCalendarId);
+      const resourceCal        = calendars.find(c => c.id === form.resourceCalendarId);
       const resourceCalendarId = resourceCal?.googleCalendarId || 'primary';
+      const professionalEmail  = selectedProfessional?.googleCalendarId || '';
+      const doctorName         = selectedProfessional?.label || '';
 
-      // Email del profesional (su googleCalendarId es su email en Google)
-      const professionalEmail = selectedProfessional?.googleCalendarId || '';
-      const doctorName = selectedProfessional?.label || '';
+      // Ubicación: campo manual o nombre de sala
+      const locationFinal = form.isVirtual
+        ? (form.createMeet ? 'Google Meet (se generará automáticamente)' : form.meetLink || 'Virtual')
+        : (form.location || resourceCal?.label || '');
 
-      const url = editEvent ? `/api/events?id=${editEvent.id}` : '/api/events';
+      const url    = editEvent ? `/api/events?id=${editEvent.id}` : '/api/events';
       const method = editEvent ? 'PATCH' : 'POST';
 
       const res = await fetch(url, {
@@ -96,14 +100,18 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
         body: JSON.stringify({
           resourceCalendarId,
           professionalEmail: professionalEmail || undefined,
-          patient: form.patient,
-          procedure: form.procedure,
-          doctor: doctorName,
-          date: form.date,
-          startTime: form.startTime,
-          endTime: form.endTime,
-          location: form.location || (resourceCal?.label || ''),
-          notes: form.notes,
+          patientEmail:      form.patientEmail   || undefined,
+          patient:           form.patient,
+          procedure:         form.procedure,
+          doctor:            doctorName,
+          date:              form.date,
+          startTime:         form.startTime,
+          endTime:           form.endTime,
+          location:          locationFinal,
+          notes:             form.notes,
+          isVirtual:         form.isVirtual,
+          createMeet:        form.isVirtual && form.createMeet,
+          meetLink:          form.isVirtual && !form.createMeet ? form.meetLink : undefined,
         }),
       });
 
@@ -126,7 +134,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
     if (!confirm('¿Eliminar esta cita? Se notificará al profesional si estaba invitado.')) return;
     setLoading(true);
     try {
-      const resourceCal = calendars.find(c => c.id === editEvent.calendarId);
+      const resourceCal        = calendars.find(c => c.id === editEvent.calendarId);
       const resourceCalendarId = resourceCal?.googleCalendarId || 'primary';
       const res = await fetch(`/api/events?id=${editEvent.id}&resourceCalendarId=${resourceCalendarId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Error al eliminar');
@@ -163,15 +171,12 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
 
         <form onSubmit={handleSubmit} className="p-7 space-y-5">
 
-          {/* SALA / RECURSO + PROFESIONAL — la parte clave */}
+          {/* ASIGNACIÓN — Sala + Profesional */}
           <div className="p-4 bg-blue-50/60 border border-blue-100 rounded-2xl space-y-4">
             <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Asignación</p>
 
-            {/* Sala */}
             <div>
-              <label className={labelClass}>
-                <span className="text-blue-600">Sala / Recurso</span>
-              </label>
+              <label className={labelClass}><span className="text-blue-600">Sala / Recurso</span></label>
               <select
                 className={inputClass + " cursor-pointer bg-white border-blue-200"}
                 value={form.resourceCalendarId}
@@ -184,11 +189,10 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
               </select>
             </div>
 
-            {/* Profesional */}
             <div>
               <label className={labelClass}>
                 <span className="text-purple-600">Profesional / Médico</span>
-                {selectedProfessional?.googleCalendarId && (
+                {selectedProfessional?.googleCalendarId && selectedProfessional.googleCalendarId !== 'primary' && (
                   <span className="ml-2 text-emerald-500 normal-case tracking-normal">✓ Recibirá invitación</span>
                 )}
               </label>
@@ -206,30 +210,58 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
               </select>
               {selectedProfessional && selectedProfessional.googleCalendarId && selectedProfessional.googleCalendarId !== 'primary' && (
                 <p className="text-[10px] text-purple-500 mt-1 font-medium">
-                  📧 Se enviará invitación a: {selectedProfessional.googleCalendarId}
+                  📧 Invitación a: {selectedProfessional.googleCalendarId}
                 </p>
               )}
               {selectedProfessional && (!selectedProfessional.googleCalendarId || selectedProfessional.googleCalendarId === 'primary') && (
                 <p className="text-[10px] text-amber-500 mt-1 font-medium">
-                  ⚠️ Este profesional no tiene email configurado. Ve a Configuración → Calendarios para añadirlo.
+                  ⚠️ Sin email configurado — ve a Configuración → Calendarios para añadirlo.
                 </p>
               )}
             </div>
           </div>
 
-          {/* Paciente */}
-          <div>
-            <label className={labelClass}>Paciente</label>
-            <input
-              type="text"
-              placeholder="Nombre completo del paciente"
-              className={inputClass}
-              value={form.patient}
-              onChange={e => setForm(f => ({ ...f, patient: e.target.value }))}
-            />
+          {/* PACIENTE + EMAIL */}
+          <div className="p-4 bg-slate-50/60 border border-slate-100 rounded-2xl space-y-4">
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Paciente</p>
+
+            <div>
+              <label className={labelClass}>Nombre completo</label>
+              <input
+                type="text"
+                placeholder="Nombre completo del paciente"
+                className={inputClass}
+                value={form.patient}
+                onChange={e => setForm(f => ({ ...f, patient: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <label className={labelClass}>
+                Email del paciente
+                <span className="ml-2 normal-case tracking-normal text-slate-400 font-medium">(opcional — recibirá invitación)</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="email"
+                  placeholder="paciente@email.com"
+                  className={inputClass + " pl-10"}
+                  value={form.patientEmail}
+                  onChange={e => setForm(f => ({ ...f, patientEmail: e.target.value }))}
+                />
+                <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                </svg>
+              </div>
+              {form.patientEmail && (
+                <p className="text-[10px] text-emerald-500 mt-1 font-medium">
+                  ✓ El paciente recibirá invitación en su correo
+                </p>
+              )}
+            </div>
           </div>
 
-          {/* Procedimiento */}
+          {/* PROCEDIMIENTO */}
           <div>
             <label className={labelClass}>Procedimiento / Motivo</label>
             <input
@@ -241,7 +273,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
             />
           </div>
 
-          {/* Fecha y horas */}
+          {/* FECHA Y HORAS */}
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-3 sm:col-span-1">
               <label className={labelClass}>Fecha</label>
@@ -275,7 +307,92 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
             </div>
           </div>
 
-          {/* Notas */}
+          {/* MODALIDAD — Presencial / Virtual */}
+          <div className="p-4 border border-slate-200 rounded-2xl space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Modalidad</p>
+                <p className="text-sm font-bold text-slate-700">
+                  {form.isVirtual ? '💻 Cita Virtual' : '🏥 Cita Presencial'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setForm(f => ({ ...f, isVirtual: !f.isVirtual }))}
+                className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors ${form.isVirtual ? 'bg-blue-500' : 'bg-slate-200'}`}
+              >
+                <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform ${form.isVirtual ? 'translate-x-8' : 'translate-x-1'}`} />
+              </button>
+            </div>
+
+            {/* Presencial: ubicación manual */}
+            {!form.isVirtual && (
+              <div>
+                <label className={labelClass}>Ubicación / Dirección</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Ej: Sala 1, Consultorio 3, Dirección..."
+                    className={inputClass + " pl-10"}
+                    value={form.location}
+                    onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+                  />
+                  <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                </div>
+              </div>
+            )}
+
+            {/* Virtual: Google Meet auto o link personalizado */}
+            {form.isVirtual && (
+              <div className="space-y-3">
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, createMeet: true, meetLink: '' }))}
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${form.createMeet ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'}`}
+                  >
+                    🎥 Google Meet auto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, createMeet: false }))}
+                    className={`flex-1 py-2 px-3 rounded-xl text-xs font-black uppercase tracking-widest border transition-all ${!form.createMeet ? 'bg-blue-500 text-white border-blue-500' : 'bg-white text-slate-500 border-slate-200 hover:border-blue-300'}`}
+                  >
+                    🔗 Link propio
+                  </button>
+                </div>
+
+                {form.createMeet && (
+                  <p className="text-[11px] text-blue-500 font-medium bg-blue-50 p-2.5 rounded-xl">
+                    ✓ Google generará automáticamente el link de Meet y se lo enviará a todos los invitados
+                  </p>
+                )}
+
+                {!form.createMeet && (
+                  <div>
+                    <label className={labelClass}>Link de videollamada</label>
+                    <div className="relative">
+                      <input
+                        type="url"
+                        placeholder="https://meet.google.com/xxx o https://zoom.us/j/xxx"
+                        className={inputClass + " pl-10"}
+                        value={form.meetLink}
+                        onChange={e => setForm(f => ({ ...f, meetLink: e.target.value }))}
+                      />
+                      <svg className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                      </svg>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* NOTAS */}
           <div>
             <label className={labelClass}>Notas (opcional)</label>
             <textarea
@@ -286,19 +403,22 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
             />
           </div>
 
-          {/* Resumen de lo que se va a crear */}
-          {(form.resourceCalendarId || form.professionalId) && (
+          {/* RESUMEN */}
+          {(form.patient || form.resourceCalendarId || form.professionalId) && (
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-[11px] text-slate-500 space-y-1">
-              {form.resourceCalendarId && (
-                <p>🏥 <b>Sala:</b> {resources.find(r => r.id === form.resourceCalendarId)?.label || '—'}</p>
-              )}
+              {form.patient && <p>👤 <b>Paciente:</b> {form.patient}{form.patientEmail ? ` — ${form.patientEmail}` : ''}</p>}
+              {form.resourceCalendarId && <p>🏥 <b>Sala:</b> {resources.find(r => r.id === form.resourceCalendarId)?.label || '—'}</p>}
               {form.professionalId && (
                 <p>👨‍⚕️ <b>Profesional:</b> {selectedProfessional?.label || '—'}
                   {selectedProfessional?.googleCalendarId && selectedProfessional.googleCalendarId !== 'primary'
-                    ? ' — recibirá invitación por email'
-                    : ' — sin invitación (email no configurado)'}
+                    ? ' — recibirá invitación'
+                    : ''}
                 </p>
               )}
+              {form.isVirtual
+                ? <p>💻 <b>Modalidad:</b> Virtual {form.createMeet ? '(Google Meet automático)' : form.meetLink ? `— ${form.meetLink}` : ''}</p>
+                : form.location && <p>📍 <b>Ubicación:</b> {form.location}</p>
+              }
             </div>
           )}
 
@@ -308,7 +428,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
             </div>
           )}
 
-          {/* Actions */}
+          {/* BOTONES */}
           <div className="flex gap-3 pt-2">
             {editEvent && (
               <button
@@ -332,9 +452,10 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
               disabled={loading}
               className="flex-1 px-5 py-3 bg-slate-900 text-white font-black text-xs uppercase tracking-widest rounded-xl hover:bg-slate-800 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
             >
-              {loading ? (
-                <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Guardando...</>
-              ) : editEvent ? 'Guardar Cambios' : 'Crear Cita'}
+              {loading
+                ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Guardando...</>
+                : editEvent ? 'Guardar Cambios' : 'Crear Cita'
+              }
             </button>
           </div>
         </form>

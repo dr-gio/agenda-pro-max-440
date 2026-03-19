@@ -2,13 +2,12 @@
  * /api/events.js — Crear, editar y eliminar eventos en Google Calendar
  *
  * Soporta:
- * - Asignar evento a una Sala/Recurso (resourceCalendarId)
- * - Invitar al Profesional como attendee (professionalEmail) → aparece en su calendario
- * - Invitar ambos si se desea
- *
- * POST   /api/events         → Crear nuevo evento
- * PATCH  /api/events?id=xxx  → Editar evento
- * DELETE /api/events?id=xxx  → Eliminar evento
+ * - Sala/Recurso (resourceCalendarId)
+ * - Invitar Profesional (professionalEmail) → aparece en su calendario
+ * - Invitar Paciente (patientEmail) → recibe invitación en su correo
+ * - Cita Virtual con Google Meet automático (createMeet: true)
+ * - Cita Virtual con link propio (meetLink)
+ * - Ubicación personalizada
  */
 
 import { google } from 'googleapis';
@@ -25,33 +24,62 @@ function getAuth() {
   });
 }
 
-function buildEventResource({ patient, procedure, doctor, professionalEmail,
-                               date, startTime, endTime, location, notes, title }) {
+function buildEventResource({
+  patient, procedure, doctor,
+  professionalEmail, patientEmail,
+  date, startTime, endTime,
+  location, notes, title,
+  isVirtual, createMeet, meetLink,
+}) {
   const summary = [patient, procedure].filter(Boolean).join(' — ') || title || 'Cita Clínica';
 
-  const description = [
-    patient       ? `Paciente: ${patient}`           : null,
-    doctor        ? `Médico: ${doctor}`               : null,
-    procedure     ? `Procedimiento: ${procedure}`     : null,
-    notes         ? `Notas: ${notes}`                 : null,
+  // Descripción estructurada
+  const descLines = [
+    patient       ? `Paciente: ${patient}`       : null,
+    patientEmail  ? `Email paciente: ${patientEmail}` : null,
+    doctor        ? `Médico: ${doctor}`           : null,
+    procedure     ? `Procedimiento: ${procedure}` : null,
+    isVirtual     ? `Modalidad: Virtual`          : `Modalidad: Presencial`,
+    meetLink      ? `Link: ${meetLink}`            : null,
+    notes         ? `Notas: ${notes}`             : null,
   ].filter(Boolean).join('\n');
 
-  // Attendees: el profesional invitado si se proporcionó su email
+  // Attendees: profesional + paciente (si tienen email)
   const attendees = [];
   if (professionalEmail) {
     attendees.push({ email: professionalEmail, displayName: doctor || professionalEmail });
   }
+  if (patientEmail) {
+    attendees.push({ email: patientEmail, displayName: patient || patientEmail });
+  }
 
-  return {
+  // Ubicación final
+  let locationFinal = location || '';
+  if (isVirtual && meetLink && !createMeet) {
+    locationFinal = meetLink;
+  }
+
+  const resource = {
     summary,
-    location: location || '',
-    description,
+    location: locationFinal,
+    description: descLines,
     start: { dateTime: `${date}T${startTime}:00`, timeZone: 'America/Bogota' },
     end:   { dateTime: `${date}T${endTime}:00`,   timeZone: 'America/Bogota' },
     ...(attendees.length > 0 && { attendees }),
-    // Enviar invitación por email al profesional
     ...(attendees.length > 0 && { guestsCanSeeOtherGuests: false }),
   };
+
+  // Google Meet automático
+  if (isVirtual && createMeet) {
+    resource.conferenceData = {
+      createRequest: {
+        requestId: `440clinic-${Date.now()}`,
+        conferenceSolutionKey: { type: 'hangoutsMeet' },
+      },
+    };
+  }
+
+  return resource;
 }
 
 export default async function handler(req, res) {
@@ -62,15 +90,20 @@ export default async function handler(req, res) {
 
   try {
     const auth = getAuth();
-    const cal = google.calendar({ version: 'v3', auth });
+    const cal  = google.calendar({ version: 'v3', auth });
+
+    const hasInvitees = (body) =>
+      !!(body?.professionalEmail || body?.patientEmail);
 
     // ── CREAR ──────────────────────────────────────────────────────────────
     if (req.method === 'POST') {
       const {
-        resourceCalendarId = 'primary', // Sala / Recurso
-        professionalEmail,               // Email del calendario del profesional (googleCalendarId)
+        resourceCalendarId = 'primary',
+        professionalEmail, patientEmail,
         patient, procedure, doctor, title,
-        date, startTime, endTime, location, notes,
+        date, startTime, endTime,
+        location, notes,
+        isVirtual = false, createMeet = false, meetLink,
       } = req.body;
 
       if (!date || !startTime || !endTime) {
@@ -78,14 +111,17 @@ export default async function handler(req, res) {
       }
 
       const resource = buildEventResource({
-        patient, procedure, doctor, professionalEmail,
-        date, startTime, endTime, location, notes, title,
+        patient, procedure, doctor,
+        professionalEmail, patientEmail,
+        date, startTime, endTime,
+        location, notes, title,
+        isVirtual, createMeet, meetLink,
       });
 
-      // Crear en el calendario del recurso (sala) con sendUpdates para notificar al profesional
       const event = await cal.events.insert({
         calendarId: resourceCalendarId,
-        sendUpdates: professionalEmail ? 'all' : 'none',
+        sendUpdates: hasInvitees(req.body) ? 'all' : 'none',
+        conferenceDataVersion: isVirtual && createMeet ? 1 : 0,
         resource,
       });
 
@@ -97,22 +133,28 @@ export default async function handler(req, res) {
       const { id } = req.query;
       const {
         resourceCalendarId = 'primary',
-        professionalEmail,
+        professionalEmail, patientEmail,
         patient, procedure, doctor, title,
-        date, startTime, endTime, location, notes,
+        date, startTime, endTime,
+        location, notes,
+        isVirtual = false, createMeet = false, meetLink,
       } = req.body;
 
       if (!id) return res.status(400).json({ error: 'id del evento requerido' });
 
       const resource = buildEventResource({
-        patient, procedure, doctor, professionalEmail,
-        date, startTime, endTime, location, notes, title,
+        patient, procedure, doctor,
+        professionalEmail, patientEmail,
+        date, startTime, endTime,
+        location, notes, title,
+        isVirtual, createMeet, meetLink,
       });
 
       const event = await cal.events.patch({
         calendarId: resourceCalendarId,
         eventId: id,
-        sendUpdates: professionalEmail ? 'all' : 'none',
+        sendUpdates: hasInvitees(req.body) ? 'all' : 'none',
+        conferenceDataVersion: isVirtual && createMeet ? 1 : 0,
         resource,
       });
 
