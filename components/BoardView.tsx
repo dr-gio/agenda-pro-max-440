@@ -71,6 +71,7 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
   }, [events]);
 
   return (
+    <>
     <div className="max-w-7xl mx-auto px-4 py-8">
 
       {/* MODAL NUEVA / EDITAR CITA */}
@@ -279,13 +280,14 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
       )}
     </div>
 
-    {/* Chatbox IA — visible para admin y colaboradores */}
-    <ChatBox
-      calendars={calendars}
-      selectedDate={selectedDate}
-      isAdmin={isAdmin}
-      userName={session?.user || 'Colaborador'}
-    />
+      {/* Chatbox IA — visible para admin y colaboradores */}
+      <ChatBox
+        calendars={calendars}
+        selectedDate={selectedDate}
+        isAdmin={isAdmin}
+        userName={session?.user || 'Colaborador'}
+      />
+    </>
   );
 };
 
