@@ -5,6 +5,7 @@ import { storage } from '../lib/storage';
 import { fetchCalendarBoard } from '../lib/google';
 import { ICONS, TIMEZONE } from '../constants';
 import AppointmentModal from './AppointmentModal';
+import ChatBox from './ChatBox';
 
 interface BoardViewProps {
   session: AuthSession | null;
@@ -177,7 +178,7 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p className="text-sm text-blue-700 font-medium">
-            Modo colaborador — Vista de solo lectura. Para agendar citas usa el bot de Telegram de 440 Clinic.
+            Modo colaborador — Vista de solo lectura. Para agendar citas usa el <strong>chat IA</strong> (botón azul abajo a la derecha 💬) o el bot de Telegram.
           </p>
         </div>
       )}
@@ -277,6 +278,14 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
         </div>
       )}
     </div>
+
+    {/* Chatbox IA — visible para admin y colaboradores */}
+    <ChatBox
+      calendars={calendars}
+      selectedDate={selectedDate}
+      isAdmin={isAdmin}
+      userName={session?.user || 'Colaborador'}
+    />
   );
 };
 
