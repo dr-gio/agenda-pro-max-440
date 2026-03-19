@@ -82,7 +82,7 @@ async function getCalendarsFromSupabase(supabase) {
   } catch { return []; }
 }
 
-function buildEvent({ patient, patientEmail, procedure, doctor, date, startTime, endTime, location, notes }) {
+function buildEvent({ patient, patientEmail, procedure, doctor, date, startTime, endTime, location, notes, agendadoPor }) {
   const title = procedure && patient ? `${procedure} – ${patient}` : patient || procedure || 'Cita Clínica';
   const start = `${date}T${startTime || '09:00'}:00`;
   const end   = (() => {
@@ -97,6 +97,7 @@ function buildEvent({ patient, patientEmail, procedure, doctor, date, startTime,
     doctor       && `Médico: ${doctor}`,
     procedure    && `Procedimiento: ${procedure}`,
     notes        && `Notas: ${notes}`,
+    agendadoPor && `Agendado por: @${agendadoPor} (Telegram)`,
     '📱 Agendado via Bot Telegram — 440 Clinic',
   ].filter(Boolean).join('\n');
 
@@ -333,7 +334,7 @@ Calendario : [Nombre]
             const { calendarId, calendarLabel, patient, patientEmail, procedure, doctor,
                     date, startTime, endTime, location, notes } = tc.input;
             const created = await createCalendarEvent(calendarId,
-              { patient, patientEmail, procedure, doctor, date, startTime, endTime, location, notes },
+              { patient, patientEmail, procedure, doctor, date, startTime, endTime, location, notes, agendadoPor: username },
               !!patientEmail
             );
             result = JSON.stringify({ success: true, eventId: created.id, calendarLabel, patient, date, startTime });

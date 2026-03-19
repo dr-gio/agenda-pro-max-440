@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AuthSession, CalendarConfig, CalendarType, AppRoute } from '../types';
 import { storage } from '../lib/storage';
+import { supabase } from '../lib/supabaseClient';
 import { TIMEZONE } from '../constants';
 
 interface AdminViewProps {
@@ -12,7 +13,9 @@ interface AdminViewProps {
 const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
   const [calendars, setCalendars] = useState<CalendarConfig[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendars' | 'settings'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'calendars' | 'settings' | 'activity'>('dashboard');
+  const [activityLogs, setActivityLogs] = useState<any[]>([]);
+  const [loadingActivity, setLoadingActivity] = useState(false);
   const [form, setForm] = useState<Partial<CalendarConfig>>({
     id: '', label: '', type: 'resource', active: true, showDetails: true, sort: 1, timezone: TIMEZONE, googleCalendarId: '', avatarUrl: ''
   });
@@ -21,6 +24,31 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
   const [showHistory, setShowHistory] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadActivity = async () => {
+    setLoadingActivity(true);
+    try {
+      // Chat logs (app)
+      const { data: chatData } = await supabase
+        .from('chat_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      // Telegram logs
+      const { data: tgData } = await supabase
+        .from('telegram_logs')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50);
+      const combined = [
+        ...(chatData || []).map((r: any) => ({ ...r, source: 'app' })),
+        ...(tgData || []).map((r: any) => ({ ...r, source: 'telegram', user_name: r.telegram_username || r.telegram_user_id })),
+      ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      setActivityLogs(combined);
+    } finally {
+      setLoadingActivity(false);
+    }
+  };
 
   const loadAdminData = async () => {
     const cals = await storage.getCalendars();
@@ -178,11 +206,18 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
               CALENDARIOS
             </button>
             <button
-              onClick={() => setActiveTab('settings')}
+              onClick={() => { setActiveTab('settings'); }}
               className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'settings' ? 'bg-white text-blue-600 shadow-sm border border-blue-200' : 'text-slate-500 hover:text-slate-700'}`}
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
               IA & AJUSTES
+            </button>
+            <button
+              onClick={() => { setActiveTab('activity'); loadActivity(); }}
+              className={`px-6 py-2.5 rounded-xl text-xs font-black transition-all flex items-center gap-2 ${activeTab === 'activity' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path></svg>
+              ACTIVIDAD
             </button>
           </div>
         </div>
@@ -465,7 +500,7 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
             <button onClick={handleSeed} className="text-slate-400 text-xs font-bold hover:text-slate-600 uppercase tracking-widest">Restaurar Valores por Defecto</button>
           </div>
         </div>
-      ) : (
+      ) : activeTab === 'settings' ? (
         <div className="max-w-2xl mx-auto space-y-8">
           <div className="bg-white rounded-3xl border border-slate-200 p-10 shadow-sm">
             <div className="flex items-center gap-4 mb-8">
@@ -516,7 +551,70 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
             </div>
           </div>
         </div>
-      )}
+      ) : activeTab === 'activity' ? (
+        <div className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-black text-slate-900">Actividad de Agendamiento</h2>
+              <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mt-1">Quién agendó cada cita — App + Telegram</p>
+            </div>
+            <button onClick={loadActivity} className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-widest hover:bg-blue-700 transition-colors">
+              Actualizar
+            </button>
+          </div>
+          {loadingActivity ? (
+            <div className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest text-xs">Cargando...</div>
+          ) : activityLogs.length === 0 ? (
+            <div className="text-center py-20 text-slate-400 font-bold uppercase tracking-widest text-xs">Sin actividad registrada aún</div>
+          ) : (
+            <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-slate-100">
+                    <th className="text-left px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fecha</th>
+                    <th className="text-left px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Quien agendó</th>
+                    <th className="text-left px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Canal</th>
+                    <th className="text-left px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Paciente</th>
+                    <th className="text-left px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Calendario</th>
+                    <th className="text-left px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Fecha cita</th>
+                    <th className="text-left px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {activityLogs.map((log, i) => (
+                    <tr key={i} className="border-b border-slate-50 hover:bg-slate-50 transition-colors">
+                      <td className="px-6 py-4 text-xs text-slate-500 whitespace-nowrap">
+                        {new Date(log.created_at).toLocaleString('es-CO', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit', timeZone: 'America/Bogota' })}
+                      </td>
+                      <td className="px-6 py-4 font-bold text-slate-800 text-xs">
+                        {log.user_name || '—'}
+                        {log.source === 'app' && log.role && (
+                          <span className={`ml-2 text-[9px] px-1.5 py-0.5 rounded-full uppercase font-black ${log.role === 'admin' ? 'bg-purple-100 text-purple-600' : 'bg-slate-100 text-slate-500'}`}>{log.role}</span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`text-[9px] font-black px-2 py-1 rounded-full uppercase ${log.source === 'telegram' ? 'bg-blue-100 text-blue-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                          {log.source === 'telegram' ? '✈ Telegram' : '💻 App'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-xs text-slate-700">{log.patient || '—'}</td>
+                      <td className="px-6 py-4 text-xs text-slate-500">{log.calendar_label || '—'}</td>
+                      <td className="px-6 py-4 text-xs text-slate-500 whitespace-nowrap">{log.date || '—'}</td>
+                      <td className="px-6 py-4">
+                        {log.success === false ? (
+                          <span className="text-[9px] font-black px-2 py-1 rounded-full bg-red-100 text-red-600 uppercase">Error</span>
+                        ) : (
+                          <span className="text-[9px] font-black px-2 py-1 rounded-full bg-emerald-100 text-emerald-600 uppercase">OK</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      ) : null}
     </div >
   );
 };
