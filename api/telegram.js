@@ -24,6 +24,7 @@ function getGoogleAuth() {
   return new google.auth.JWT({
     email, key,
     scopes: ['https://www.googleapis.com/auth/calendar.events'],
+    subject: 'labelleza@440clinic.com', // DWD: impersonar dueño de calendarios
   });
 }
 
