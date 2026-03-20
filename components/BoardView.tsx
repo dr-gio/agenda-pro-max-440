@@ -5,6 +5,7 @@ import { storage } from '../lib/storage';
 import { fetchCalendarBoard } from '../lib/google';
 import { ICONS, TIMEZONE } from '../constants';
 import AppointmentModal from './AppointmentModal';
+import BlockModal from './BlockModal';
 import ChatBox from './ChatBox';
 
 interface BoardViewProps {
@@ -21,6 +22,7 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
   const [hasError, setHasError] = useState(false);
   const [showModal, setShowModal] = useState(false);
+  const [showBlockModal, setShowBlockModal] = useState(false);
   const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
 
   const isAdmin = session?.role === 'admin';
@@ -74,6 +76,14 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
     <>
     <div className="max-w-7xl mx-auto px-4 py-8">
 
+      {/* MODAL BLOQUEAR AGENDA */}
+      {showBlockModal && (
+        <BlockModal
+          onClose={() => setShowBlockModal(false)}
+          onSaved={() => loadData()}
+        />
+      )}
+
       {/* MODAL NUEVA / EDITAR CITA */}
       {showModal && (
         <AppointmentModal
@@ -115,6 +125,15 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4" />
               </svg>
               Nueva Cita
+            </button>
+          )}
+          {/* Botón Bloquear Agenda — solo admin */}
+          {isAdmin && (
+            <button
+              onClick={() => setShowBlockModal(true)}
+              className="flex-1 sm:flex-initial px-6 py-3 bg-red-50 text-red-600 border border-red-200 rounded-2xl hover:bg-red-100 transition-all text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
+            >
+              🔒 Bloquear
             </button>
           )}
           {isAdmin && (

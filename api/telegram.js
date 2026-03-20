@@ -86,6 +86,12 @@ const CALS_CONTEXT = Object.entries(CALENDARS)
   .map(([label, id]) => `  - "${label}": ${id}`)
   .join('\n');
 
+// Mapa de calendarios de bloqueos por profesional
+const BLOQUEOS_MAP = {
+  'drgio':  CALENDARS['AUX – BLOQUEOS – DRGIO'],
+  'sharon': CALENDARS['AUX – BLOQUEOS – SHARON'],
+};
+
 // ─── Google Calendar ──────────────────────────────────────────────────────────
 
 function buildEvent({ patient, procedure, doctor, date, startTime, endTime, location, notes, agendadoPor }) {
@@ -220,7 +226,7 @@ const TOOLS = [
         location:      { type: 'string', description: 'Ubicación — opcional' },
         notes:         { type: 'string', description: 'Notas adicionales — opcional' },
       },
-      required: ['calendarId', 'calendarLabel', 'patient', 'procedure', 'date', 'startTime'],
+      required: ['calendarId', 'calendarLabel', 'date', 'startTime'],
     },
   },
   {
@@ -352,13 +358,25 @@ Zona horaria: America/Bogota
 SIN asistentes. SIN invitados. Nunca.
 
 ##########################################
-FLUJO OBLIGATORIO
+BLOQUEOS DE AGENDA
 ##########################################
-1. Reúne los 4 datos mínimos: paciente, tipo de cita, fecha, hora.
-   Si falta alguno, pregunta SOLO ese dato.
-2. SIEMPRE consultar disponibilidad antes de crear (usa consultar_disponibilidad).
-   Si está ocupado, informa y ofrece alternativas.
-3. Muestra resumen y espera "sí":
+Cuando el usuario diga "bloquear", "no disponible", "bloqueado", "no puede atender", etc.:
+- Dr. Gio  → usar AUX – BLOQUEOS – DRGIO  (sin sala, sin paciente)
+- Dra. Sharon → usar AUX – BLOQUEOS – SHARON (sin sala, sin paciente)
+- Título del evento = motivo del bloqueo (ej: "Cirugía externa", "Cena personal")
+- Para bloqueos el campo "patient" = motivo, "procedure" = "Bloqueo"
+- NO pedir datos de paciente para bloqueos
+
+##########################################
+FLUJO PARA AGENDAR CITA (con chequeo de bloqueos)
+##########################################
+1. Reúne los datos: paciente, tipo de cita, profesional, fecha, hora.
+2. VERIFICACIÓN DE DISPONIBILIDAD — llama consultar_disponibilidad DOS VECES:
+   a) En el calendario del servicio (ej: MED – DRGIO – CONSULTAS)
+   b) En el calendario de bloqueos del doctor (AUX – BLOQUEOS – DRGIO o AUX – BLOQUEOS – SHARON)
+   Si hay conflicto en CUALQUIERA de los dos → informa al usuario y ofrece alternativas.
+   Para otros profesionales (Katherine, Lia, etc.) → revisar solo su calendario.
+3. Si está disponible, muestra resumen y espera "sí":
 
 📅 RESUMEN
 Paciente   : [nombre]
@@ -371,6 +389,21 @@ Calendario : [nombre]
 
 4. Con confirmación → llamar crear_cita inmediatamente.
 5. Confirmar al usuario con el resultado.
+
+##########################################
+FLUJO PARA BLOQUEO
+##########################################
+1. Preguntar: ¿quién? ¿fecha? ¿hora inicio? ¿hora fin? ¿motivo?
+2. Mostrar resumen:
+
+🔒 BLOQUEO
+Médico  : [Dr. Gio / Dra. Sharon]
+Fecha   : [fecha]
+Hora    : [inicio] – [fin]
+Motivo  : [motivo]
+¿Confirmas? (Sí / No)
+
+3. Con confirmación → llamar crear_cita con el calendario de bloqueos.
 
 NUNCA inventes disponibilidad. NUNCA agregues asistentes. NUNCA digas que hay limitaciones técnicas.
 Si hay un error real, muéstralo textualmente. Responde siempre en español.`;
