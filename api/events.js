@@ -117,15 +117,14 @@ export default async function handler(req, res) {
     const cal  = google.calendar({ version: 'v3', auth });
 
     const hasInvitees = (body) =>
-      !!(body?.professionalEmail || body?.patientEmail || (body?.extraAttendees?.length > 0));
+      !!(body?.patientEmail || (body?.extraAttendees?.length > 0));
 
     // ── CREAR ──────────────────────────────────────────────────────────────
     if (req.method === 'POST') {
       const {
-        resourceCalendarId = 'primary',
         professionalCalendarId = '',
-        professionalEmail, patientEmail,
-        resourceEmails = '',
+        resourceCalendarId = '',
+        patientEmail,
         extraAttendees = [],
         patient, procedure, doctor, title,
         date, startTime, endTime,
@@ -139,8 +138,7 @@ export default async function handler(req, res) {
 
       const eventBody = buildEventResource({
         patient, procedure, doctor,
-        professionalEmail, patientEmail,
-        resourceEmails,
+        patientEmail,
         extraAttendees,
         date, startTime, endTime,
         location, notes, title,
@@ -150,22 +148,24 @@ export default async function handler(req, res) {
       const sendUpd = hasInvitees(req.body) ? 'all' : 'none';
       const confVer = isVirtual && createMeet ? 1 : 0;
 
-      // Escribir en la sala/recurso
+      // Calendario principal = el del profesional/servicio
+      const primaryCalId = professionalCalendarId || resourceCalendarId || 'primary';
+
       const event = await cal.events.insert({
-        calendarId: resourceCalendarId,
+        calendarId: primaryCalId,
         sendUpdates: sendUpd,
         conferenceDataVersion: confVer,
         resource: eventBody,
       });
 
-      // Escribir también en el calendario específico del profesional (si es distinto)
-      if (professionalCalendarId && professionalCalendarId !== resourceCalendarId) {
+      // Dual-write en la sala/recurso para bloquear el espacio (sin attendees ni notificaciones)
+      if (resourceCalendarId && resourceCalendarId !== primaryCalId) {
         await cal.events.insert({
-          calendarId: professionalCalendarId,
-          sendUpdates: 'none', // ya se notificó arriba
+          calendarId: resourceCalendarId,
+          sendUpdates: 'none',
           conferenceDataVersion: confVer,
-          resource: { ...eventBody, attendees: undefined }, // sin attendees para evitar duplicados
-        }).catch(() => {}); // no fallar si el calendario del profesional da error
+          resource: { ...eventBody, attendees: undefined },
+        }).catch(err => console.error('[events] dual-write sala falló (no crítico):', err.message));
       }
 
       return res.status(201).json({ success: true, event: event.data });
@@ -175,9 +175,9 @@ export default async function handler(req, res) {
     if (req.method === 'PATCH') {
       const { id } = req.query;
       const {
+        professionalCalendarId = '',
         resourceCalendarId = 'primary',
-        professionalEmail, patientEmail,
-        resourceEmails = '',
+        patientEmail,
         extraAttendees = [],
         patient, procedure, doctor, title,
         date, startTime, endTime,
@@ -189,16 +189,17 @@ export default async function handler(req, res) {
 
       const resource = buildEventResource({
         patient, procedure, doctor,
-        professionalEmail, patientEmail,
-        resourceEmails,
+        patientEmail,
         extraAttendees,
         date, startTime, endTime,
         location, notes, title,
         isVirtual, createMeet, meetLink,
       });
 
+      const primaryCalId = professionalCalendarId || resourceCalendarId;
+
       const event = await cal.events.patch({
-        calendarId: resourceCalendarId,
+        calendarId: primaryCalId,
         eventId: id,
         sendUpdates: hasInvitees(req.body) ? 'all' : 'none',
         conferenceDataVersion: isVirtual && createMeet ? 1 : 0,

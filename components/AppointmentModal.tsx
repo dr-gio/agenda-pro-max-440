@@ -152,12 +152,12 @@ interface AppointmentModalProps {
 const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose, onSaved, editEvent }) => {
   const today = new Date().toISOString().split('T')[0];
 
-  const resources     = calendars.filter(c => c.active && (c.type === 'resource' || c.type === 'general'));
-  const professionals = calendars.filter(c => c.active && (c.type === 'professional' || c.type === 'aesthetic'));
+  const professionals = calendars.filter(c => c.active && (c.type === 'professional' || c.type === 'aesthetic' || c.type === 'general'));
+  const resources     = calendars.filter(c => c.active && c.type === 'resource');
 
   const [form, setForm] = useState({
-    resourceCalendarId: resources[0]?.id || '',
-    professionalId: '',
+    professionalId: professionals[0]?.id || '',
+    resourceCalendarId: '',
     patient: '',
     patientEmail: '',
     procedure: '',
@@ -193,7 +193,8 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
 
       setForm(f => ({
         ...f,
-        resourceCalendarId: editEvent.calendarId || resources[0]?.id || '',
+        professionalId: editEvent.calendarId || professionals[0]?.id || '',
+        resourceCalendarId: '',
         patient:      getField('Paciente')      || titleParts[0] || '',
         patientEmail: getField('Email paciente') || '',
         procedure:    getField('Procedimiento') || titleParts[1] || '',
@@ -207,8 +208,6 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
   }, [editEvent]);
 
   const selectedProfessional = professionals.find(p => p.id === form.professionalId) || null;
-  const isPersonalEmail = (e?: string) => !!e && !e.includes('@group.calendar.google.com') && !e.includes('@resource.calendar.google.com');
-  const profEmail = selectedProfessional?.personalEmail || '';
 
   const handleStartTimeChange = (val: string) => {
     const [h, m] = val.split(':').map(Number);
@@ -222,12 +221,14 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
     setLoading(true);
 
     try {
-      const resourceCal           = calendars.find(c => c.id === form.resourceCalendarId);
-      const resourceCalendarId    = resourceCal?.googleCalendarId || 'primary';
-      const resourceEmails        = resourceCal?.personalEmail || '';
-      const professionalEmail     = selectedProfessional?.personalEmail || '';
       const professionalCalendarId = selectedProfessional?.googleCalendarId || '';
-      const doctorName            = selectedProfessional?.label || '';
+      const doctorName             = selectedProfessional?.label || '';
+      const resourceCal            = calendars.find(c => c.id === form.resourceCalendarId);
+      const resourceCalendarId     = resourceCal?.googleCalendarId || '';
+
+      if (!professionalCalendarId) {
+        throw new Error('Debes seleccionar un profesional o servicio');
+      }
 
       // Ubicación: campo manual o nombre de sala
       const locationFinal = form.isVirtual
@@ -241,23 +242,21 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
         method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          resourceCalendarId,
-          professionalCalendarId: professionalCalendarId || undefined,
-          resourceEmails:    resourceEmails    || undefined,
-          professionalEmail: professionalEmail || undefined,
-          patientEmail:      form.patientEmail   || undefined,
-          extraAttendees:    extraAttendees.filter(a => a.email.trim()),
-          patient:           form.patient,
-          procedure:         form.procedure,
-          doctor:            doctorName,
-          date:              form.date,
-          startTime:         form.startTime,
-          endTime:           form.endTime,
-          location:          locationFinal,
-          notes:             form.notes,
-          isVirtual:         form.isVirtual,
-          createMeet:        form.isVirtual && form.createMeet,
-          meetLink:          form.isVirtual && !form.createMeet ? form.meetLink : undefined,
+          professionalCalendarId,
+          resourceCalendarId:    resourceCalendarId || undefined,
+          patientEmail:          form.patientEmail  || undefined,
+          extraAttendees:        extraAttendees.filter(a => a.email.trim()),
+          patient:               form.patient,
+          procedure:             form.procedure,
+          doctor:                doctorName,
+          date:                  form.date,
+          startTime:             form.startTime,
+          endTime:               form.endTime,
+          location:              locationFinal,
+          notes:                 form.notes,
+          isVirtual:             form.isVirtual,
+          createMeet:            form.isVirtual && form.createMeet,
+          meetLink:              form.isVirtual && !form.createMeet ? form.meetLink : undefined,
         }),
       });
 
@@ -317,12 +316,33 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
 
         <form onSubmit={handleSubmit} className="p-7 space-y-5">
 
-          {/* ASIGNACIÓN — Sala + Profesional */}
+          {/* ASIGNACIÓN — Profesional (principal) + Sala (secundaria) */}
           <div className="p-4 bg-blue-50/60 border border-blue-100 rounded-2xl space-y-4">
             <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">Asignación</p>
 
             <div>
-              <label className={labelClass}><span className="text-blue-600">Sala / Recurso</span></label>
+              <label className={labelClass}>
+                <span className="text-purple-600">Profesional / Servicio</span>
+                <span className="ml-2 text-red-400 normal-case tracking-normal font-medium">*requerido</span>
+              </label>
+              <select
+                className={inputClass + " cursor-pointer bg-white border-purple-200"}
+                value={form.professionalId}
+                onChange={e => setForm(f => ({ ...f, professionalId: e.target.value }))}
+                required
+              >
+                <option value="">— Selecciona profesional o servicio —</option>
+                {professionals.map(c => (
+                  <option key={c.id} value={c.id}>{c.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className={labelClass}>
+                <span className="text-blue-600">Sala / Recurso</span>
+                <span className="ml-2 text-slate-400 normal-case tracking-normal font-medium">(opcional — bloquea el espacio)</span>
+              </label>
               <select
                 className={inputClass + " cursor-pointer bg-white border-blue-200"}
                 value={form.resourceCalendarId}
@@ -333,37 +353,6 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
                   <option key={c.id} value={c.id}>{c.label}</option>
                 ))}
               </select>
-            </div>
-
-            <div>
-              <label className={labelClass}>
-                <span className="text-purple-600">Profesional / Médico</span>
-                {profEmail && (
-                  <span className="ml-2 text-emerald-500 normal-case tracking-normal">✓ Recibirá invitación</span>
-                )}
-              </label>
-              <select
-                className={inputClass + " cursor-pointer bg-white border-purple-200"}
-                value={form.professionalId}
-                onChange={e => setForm(f => ({ ...f, professionalId: e.target.value }))}
-              >
-                <option value="">— Sin profesional asignado —</option>
-                {professionals.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.label}{c.googleCalendarId && c.googleCalendarId !== 'primary' ? ' ✓' : ' (sin email)'}
-                  </option>
-                ))}
-              </select>
-              {selectedProfessional && profEmail && (
-                <p className="text-[10px] text-purple-500 mt-1 font-medium">
-                  📧 Invitación a: {profEmail}
-                </p>
-              )}
-              {selectedProfessional && !profEmail && (
-                <p className="text-[10px] text-amber-500 mt-1 font-medium">
-                  ⚠️ Sin email personal — ve a Configuración → Calendarios para añadirlo.
-                </p>
-              )}
             </div>
           </div>
 
@@ -628,17 +617,17 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
           </div>
 
           {/* RESUMEN */}
-          {(form.patient || form.resourceCalendarId || form.professionalId || extraAttendees.length > 0) && (
+          {(form.patient || form.professionalId || form.resourceCalendarId || extraAttendees.length > 0) && (
             <div className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-[11px] text-slate-500 space-y-1">
-              {form.patient && <p>👤 <b>Paciente:</b> {form.patient}{form.patientEmail ? ` — ${form.patientEmail}` : ''}</p>}
-              {form.resourceCalendarId && <p>🏥 <b>Sala:</b> {resources.find(r => r.id === form.resourceCalendarId)?.label || '—'}</p>}
               {form.professionalId && (
-                <p>👨‍⚕️ <b>Profesional:</b> {selectedProfessional?.label || '—'}
-                  {profEmail ? ' — recibirá invitación' : ''}
-                </p>
+                <p>👨‍⚕️ <b>Profesional:</b> {selectedProfessional?.label || '—'}</p>
               )}
+              {form.resourceCalendarId && (
+                <p>🏥 <b>Sala:</b> {resources.find(r => r.id === form.resourceCalendarId)?.label || '—'}</p>
+              )}
+              {form.patient && <p>👤 <b>Paciente:</b> {form.patient}{form.patientEmail ? ` — ✉️ ${form.patientEmail}` : ''}</p>}
               {extraAttendees.filter(a => a.email).length > 0 && (
-                <p>👥 <b>Equipo:</b> {extraAttendees.filter(a => a.email).map(a =>
+                <p>👥 <b>Externos:</b> {extraAttendees.filter(a => a.email).map(a =>
                   `${a.displayName || a.email}${a.role ? ' (' + a.role + ')' : ''}`
                 ).join(', ')}</p>
               )}
