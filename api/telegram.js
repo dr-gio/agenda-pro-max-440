@@ -9,6 +9,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { google } from 'googleapis';
 import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
+import { sendAppointmentEmail } from './sendEmail.js';
 
 // ─── Helpers básicos ──────────────────────────────────────────────────────────
 
@@ -211,7 +212,7 @@ async function tryLinkStaff(supabase, chatId, text) {
 const TOOLS = [
   {
     name: 'crear_cita',
-    description: 'Crea un evento en Google Calendar. No agrega asistentes ni invitados nunca.',
+    description: 'Crea un evento en Google Calendar y envía notificación por correo (Resend) al paciente y/o colaboradores externos si se proporcionaron emails.',
     input_schema: {
       type: 'object',
       properties: {
@@ -225,6 +226,20 @@ const TOOLS = [
         endTime:       { type: 'string', description: 'Hora fin HH:MM (24h)' },
         location:      { type: 'string', description: 'Ubicación — opcional' },
         notes:         { type: 'string', description: 'Notas adicionales — opcional' },
+        patientEmail:  { type: 'string', description: 'Correo del paciente para enviarle confirmación vía Resend — opcional' },
+        collaborators: {
+          type: 'array',
+          description: 'Colaboradores externos (médico anestesiólogo, instrumentador, etc.) a quienes enviar convocatoria quirúrgica vía Resend — opcional',
+          items: {
+            type: 'object',
+            properties: {
+              email:       { type: 'string', description: 'Correo del colaborador' },
+              displayName: { type: 'string', description: 'Nombre del colaborador' },
+              role:        { type: 'string', description: 'Rol en el procedimiento (ej: Anestesiólogo, Instrumentador)' },
+            },
+            required: ['email'],
+          },
+        },
       },
       required: ['calendarId', 'calendarLabel', 'date', 'startTime'],
     },
@@ -385,6 +400,8 @@ Profesional: [nombre]
 Fecha      : [fecha]
 Hora       : [inicio] – [fin]
 Calendario : [nombre]
+[Si hay correo del paciente]   📧 Paciente notificado: [email]
+[Si hay colaboradores]         📧 Colaboradores: [nombre (rol) — email, ...]
 ¿Confirmas? (Sí / No)
 
 4. Con confirmación → llamar crear_cita inmediatamente.
@@ -409,13 +426,19 @@ NUNCA inventes disponibilidad. NUNCA agregues asistentes. NUNCA digas que hay li
 Si hay un error real, muéstralo textualmente. Responde siempre en español.
 
 ##########################################
-REGLA SOBRE INVITACIONES / CORREOS / DWD
+NOTIFICACIONES POR CORREO (RESEND)
 ##########################################
-Si el usuario menciona "invitar", "enviar correo", "notificar al paciente", "mandar email",
-"invitados", "asistentes", o similares → responde SIEMPRE así:
-"Las notificaciones y confirmaciones por correo se envían automáticamente por el sistema al momento de crear la cita desde la aplicación web. Aquí en el bot solo creo el evento en el calendario. ¿Procedo con el agendamiento?"
-NUNCA menciones DWD, Domain-Wide Delegation, cuentas de servicio, limitaciones técnicas,
-ni sugiereas crear el evento manualmente. Eso no es tu función.`;
+Puedes enviar correos de confirmación vía Resend al crear una cita.
+- Al paciente: correo personalizado según el tipo de cita (consulta, cirugía, control, etc.)
+- A colaboradores externos (anestesiólogo, instrumentador, etc.): convocatoria quirúrgica
+
+Si el usuario menciona correos, invitaciones o notificaciones:
+→ Pregunta: "¿Tienes el correo del paciente? ¿Hay algún colaborador externo al que notificar (nombre, rol, correo)?"
+→ Incluye esos datos en el campo patientEmail y collaborators del tool crear_cita.
+→ El sistema enviará automáticamente los correos con archivo .ics adjunto.
+
+Si el usuario NO menciona correos → no preguntes, crea el evento normalmente.
+NUNCA menciones DWD, Domain-Wide Delegation, ni limitaciones técnicas. No existen.`;
 
     const currentMessages = [...history, { role: 'user', content: userMessage }];
     const anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() });
@@ -447,7 +470,8 @@ ni sugiereas crear el evento manualmente. Eso no es tu función.`;
         try {
           if (tc.name === 'crear_cita') {
             const { calendarId, calendarLabel, patient, procedure, doctor,
-                    date, startTime, endTime, location, notes } = tc.input;
+                    date, startTime, endTime, location, notes,
+                    patientEmail, collaborators = [] } = tc.input;
 
             const created = await createCalendarEvent(calendarId, {
               patient, procedure, doctor,
@@ -455,10 +479,33 @@ ni sugiereas crear el evento manualmente. Eso no es tu función.`;
               agendadoPor: username,
             });
 
+            // Enviar emails vía Resend
+            const emailBase = {
+              title: [patient, procedure].filter(Boolean).join(' – ') || 'Cita Clínica',
+              procedure, doctor,
+              start: `${date}T${startTime}:00`,
+              end:   `${date}T${endTime || startTime}:00`,
+              location, notes,
+            };
+            const emailsSent = [];
+            if (patientEmail) {
+              await sendAppointmentEmail({ to: patientEmail, toName: patient, type: 'patient', ...emailBase })
+                .catch(e => console.error('[telegram email] paciente:', e.message));
+              emailsSent.push(patientEmail);
+            }
+            for (const col of collaborators) {
+              if (col.email) {
+                await sendAppointmentEmail({ to: col.email, toName: col.displayName, type: 'collaborator', ...emailBase })
+                  .catch(e => console.error('[telegram email] colaborador:', e.message));
+                emailsSent.push(col.email);
+              }
+            }
+
             result = JSON.stringify({
               success: true,
               eventId: created.id,
               calendarLabel, patient, date, startTime,
+              emailsSent,
             });
 
             await supabase.from('telegram_logs').insert({
