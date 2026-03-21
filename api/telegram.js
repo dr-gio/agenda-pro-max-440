@@ -568,6 +568,19 @@ Motivo  : [motivo]
 
 3. Con confirmación → llamar crear_cita con el calendario de bloqueos.
 
+##########################################
+REGLA CRÍTICA — CONFIRMACIÓN DEL USUARIO
+##########################################
+Cuando el usuario responda "sí", "si", "dale", "confirmo", "ok", "listo", "correcto"
+o cualquier variante afirmativa DESPUÉS de haber mostrado un RESUMEN:
+
+→ DEBES llamar el tool correspondiente INMEDIATAMENTE.
+→ Para citas nuevas: llamar crear_cita con TODOS los datos del resumen anterior.
+→ Para cancelaciones: llamar cancelar_cita.
+→ Para ediciones: llamar editar_cita.
+→ NO digas "voy a agendar", NO expliques lo que harás. HAZLO directamente.
+→ Si no recuerdas los datos exactos del resumen, PREGUNTA de nuevo en lugar de inventar.
+
 NUNCA inventes disponibilidad. NUNCA agregues asistentes. NUNCA digas que hay limitaciones técnicas.
 Si hay un error real, muéstralo textualmente. Responde siempre en español.
 
@@ -768,8 +781,12 @@ NUNCA menciones DWD, Domain-Wide Delegation, ni limitaciones técnicas. No exist
       finalReply = last.content.filter(b => b.type === 'text').map(b => b.text).join('\n');
     }
 
+    // Guardar historial completo incluyendo tool calls para que Claude tenga
+    // contexto completo en el siguiente mensaje (ej: cuando usuario confirma "sí")
+    const historyToSave = loopMessages.slice(history.length); // solo lo nuevo
     await saveHistory(supabase, chatId, [
-      ...currentMessages,
+      ...history,
+      ...historyToSave,
       { role: 'assistant', content: finalReply || '¿En qué más puedo ayudarte?' },
     ]);
 
