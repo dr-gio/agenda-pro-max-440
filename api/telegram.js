@@ -497,6 +497,8 @@ NUNCA menciones DWD, Domain-Wide Delegation, ni limitaciones técnicas. No exist
       const toolCalls = response.content.filter(b => b.type === 'tool_use');
       if (!toolCalls.length) break;
 
+      console.error(`[BOT] tools llamados: ${toolCalls.map(t => t.name).join(', ')}`);
+
       loopMessages.push({ role: 'assistant', content: response.content });
       const toolResults = [];
 
@@ -507,6 +509,8 @@ NUNCA menciones DWD, Domain-Wide Delegation, ni limitaciones técnicas. No exist
             const { calendarId, calendarLabel, patient, procedure, doctor,
                     date, startTime, endTime, location, notes,
                     patientEmail, collaborators = [] } = tc.input;
+
+            console.error(`[BOT] crear_cita → calendarId=${calendarId} patient=${patient} date=${date} start=${startTime}`);
 
             const created = await createCalendarEvent(calendarId, {
               patient, procedure, doctor,
@@ -551,6 +555,8 @@ NUNCA menciones DWD, Domain-Wide Delegation, ni limitaciones técnicas. No exist
               console.error('[telegram_logs] no crítico:', logErr.message);
             }
 
+            console.error(`[BOT] evento creado OK → eventId=${created.id}`);
+
             result = JSON.stringify({
               success: true,
               eventId: created.id,
@@ -584,6 +590,7 @@ NUNCA menciones DWD, Domain-Wide Delegation, ni limitaciones técnicas. No exist
             });
           }
         } catch (err) {
+          console.error(`[BOT] ERROR en tool ${tc.name}:`, err.message);
           result = JSON.stringify({ success: false, error: err.message });
         }
         toolResults.push({ type: 'tool_result', tool_use_id: tc.id, content: result });
