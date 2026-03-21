@@ -21,6 +21,7 @@ function getAuth() {
     email,
     key,
     scopes: ['https://www.googleapis.com/auth/calendar'],
+    subject: 'drgio@440clinic.com',
   });
 }
 
