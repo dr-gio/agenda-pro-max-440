@@ -146,6 +146,37 @@ async function listCalendarEvents(calendarId, date) {
   return res.data.items || [];
 }
 
+async function searchCalendarEvents(calendarId, query, dateFrom, dateTo) {
+  const cal = google.calendar({ version: 'v3', auth: getGoogleAuth() });
+  const res = await cal.events.list({
+    calendarId,
+    q: query,
+    timeMin: new Date(`${dateFrom}T00:00:00-05:00`).toISOString(),
+    timeMax: new Date(`${dateTo}T23:59:59-05:00`).toISOString(),
+    singleEvents: true,
+    orderBy: 'startTime',
+    maxResults: 10,
+  });
+  return res.data.items || [];
+}
+
+async function updateCalendarEvent(calendarId, eventId, eventData) {
+  const cal = google.calendar({ version: 'v3', auth: getGoogleAuth() });
+  const res = await cal.events.patch({
+    calendarId,
+    eventId,
+    sendUpdates: 'none',
+    resource: buildEvent(eventData),
+  });
+  return res.data;
+}
+
+async function deleteCalendarEvent(calendarId, eventId) {
+  const cal = google.calendar({ version: 'v3', auth: getGoogleAuth() });
+  await cal.events.delete({ calendarId, eventId, sendUpdates: 'none' });
+  return { deleted: true };
+}
+
 // Convierte "HH:MM" a minutos desde medianoche
 function toMin(t) {
   const [h, m] = (t || '00:00').split(':').map(Number);
@@ -262,6 +293,57 @@ const TOOLS = [
         },
       },
       required: ['calendarId', 'calendarLabel', 'date', 'startTime'],
+    },
+  },
+  {
+    name: 'buscar_evento',
+    description: 'Busca eventos en un calendario por nombre de paciente o palabra clave en un rango de fechas. Usar para encontrar el evento antes de editarlo o cancelarlo.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        calendarId:    { type: 'string', description: 'Google Calendar ID donde buscar' },
+        calendarLabel: { type: 'string', description: 'Nombre del calendario' },
+        query:         { type: 'string', description: 'Nombre del paciente o palabra clave' },
+        dateFrom:      { type: 'string', description: 'Fecha inicio búsqueda YYYY-MM-DD' },
+        dateTo:        { type: 'string', description: 'Fecha fin búsqueda YYYY-MM-DD' },
+      },
+      required: ['calendarId', 'calendarLabel', 'query', 'dateFrom', 'dateTo'],
+    },
+  },
+  {
+    name: 'editar_cita',
+    description: 'Edita (reprograma o modifica) un evento existente en Google Calendar. Requiere el eventId obtenido con buscar_evento.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        calendarId:    { type: 'string', description: 'Google Calendar ID del evento' },
+        calendarLabel: { type: 'string', description: 'Nombre del calendario' },
+        eventId:       { type: 'string', description: 'ID del evento a editar (obtenido con buscar_evento)' },
+        patient:       { type: 'string', description: 'Nombre del paciente' },
+        procedure:     { type: 'string', description: 'Tipo de cita o procedimiento' },
+        doctor:        { type: 'string', description: 'Nombre del profesional' },
+        date:          { type: 'string', description: 'Nueva fecha YYYY-MM-DD' },
+        startTime:     { type: 'string', description: 'Nueva hora inicio HH:MM' },
+        endTime:       { type: 'string', description: 'Nueva hora fin HH:MM' },
+        location:      { type: 'string', description: 'Ubicación' },
+        notes:         { type: 'string', description: 'Notas' },
+      },
+      required: ['calendarId', 'eventId', 'date', 'startTime'],
+    },
+  },
+  {
+    name: 'cancelar_cita',
+    description: 'Cancela (elimina) un evento del calendario. Requiere el eventId obtenido con buscar_evento. SIEMPRE confirmar con el usuario antes de cancelar.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        calendarId:    { type: 'string', description: 'Google Calendar ID del evento' },
+        calendarLabel: { type: 'string', description: 'Nombre del calendario' },
+        eventId:       { type: 'string', description: 'ID del evento a cancelar' },
+        patient:       { type: 'string', description: 'Nombre del paciente (para confirmación)' },
+        date:          { type: 'string', description: 'Fecha del evento (para confirmación)' },
+      },
+      required: ['calendarId', 'eventId'],
     },
   },
   {
@@ -461,6 +543,25 @@ NUNCA inventes disponibilidad. NUNCA agregues asistentes. NUNCA digas que hay li
 Si hay un error real, muéstralo textualmente. Responde siempre en español.
 
 ##########################################
+REPROGRAMAR / EDITAR / CANCELAR CITAS
+##########################################
+Si el usuario quiere modificar, reprogramar o cancelar una cita:
+
+EDITAR / REPROGRAMAR:
+1. Usa buscar_evento con el nombre del paciente y rango de fechas aproximado
+2. Muestra los eventos encontrados y pide confirmar cuál es el correcto
+3. Pregunta qué cambiar (nueva fecha, hora, etc.)
+4. Verifica disponibilidad en el nuevo horario con consultar_disponibilidad
+5. Muestra resumen del cambio y espera "sí"
+6. Llama editar_cita con el eventId
+
+CANCELAR:
+1. Usa buscar_evento para encontrar el evento
+2. Muestra el evento y pregunta: "¿Confirmas la cancelación de [título] el [fecha] a las [hora]?"
+3. Solo con confirmación explícita → llama cancelar_cita
+4. NUNCA cancelar sin confirmación del usuario
+
+##########################################
 NOTIFICACIONES POR CORREO (RESEND)
 ##########################################
 Puedes enviar correos de confirmación vía Resend al crear una cita.
@@ -563,6 +664,37 @@ NUNCA menciones DWD, Domain-Wide Delegation, ni limitaciones técnicas. No exist
               calendarLabel, patient, date, startTime,
               emailsSent,
             });
+
+          } else if (tc.name === 'buscar_evento') {
+            const { calendarId, calendarLabel, query, dateFrom, dateTo } = tc.input;
+            console.error(`[BOT] buscar_evento → cal=${calendarLabel} query="${query}" ${dateFrom}→${dateTo}`);
+            const found = await searchCalendarEvents(calendarId, query, dateFrom, dateTo);
+            result = JSON.stringify({
+              calendarLabel, query,
+              found: found.length,
+              events: found.map(e => ({
+                eventId: e.id,
+                title:   e.summary,
+                date:    e.start?.dateTime ? e.start.dateTime.split('T')[0] : e.start?.date,
+                start:   e.start?.dateTime ? new Date(e.start.dateTime).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Bogota' }) : 'Todo el día',
+                end:     e.end?.dateTime   ? new Date(e.end.dateTime).toLocaleTimeString('es-CO',   { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Bogota' }) : '',
+              })),
+            });
+
+          } else if (tc.name === 'editar_cita') {
+            const { calendarId, calendarLabel, eventId, patient, procedure, doctor,
+                    date, startTime, endTime, location, notes } = tc.input;
+            console.error(`[BOT] editar_cita → eventId=${eventId} date=${date} start=${startTime}`);
+            const updated = await updateCalendarEvent(calendarId, eventId, {
+              patient, procedure, doctor, date, startTime, endTime, location, notes, agendadoPor: username,
+            });
+            result = JSON.stringify({ success: true, eventId: updated.id, calendarLabel, patient, date, startTime });
+
+          } else if (tc.name === 'cancelar_cita') {
+            const { calendarId, calendarLabel, eventId, patient, date } = tc.input;
+            console.error(`[BOT] cancelar_cita → eventId=${eventId}`);
+            await deleteCalendarEvent(calendarId, eventId);
+            result = JSON.stringify({ success: true, message: `Cita de ${patient || 'paciente'} el ${date || ''} cancelada correctamente.` });
 
           } else if (tc.name === 'consultar_disponibilidad') {
             const { calendarId, calendarLabel, date, startTime, endTime } = tc.input;
