@@ -66,16 +66,7 @@ function buildEventResource({ patient, procedure, doctor, professionalEmail, pat
     ? new Date(`${date}T${endTime}:00-05:00`)
     : new Date(start.getTime() + 60 * 60 * 1000);
 
-  const attendees = [];
-  if (patientEmail) {
-    attendees.push({ email: patientEmail, displayName: patient || patientEmail });
-  }
-  if (professionalEmail) {
-    attendees.push({ email: professionalEmail, displayName: doctor || professionalEmail });
-  }
-  for (const att of extraAttendees) {
-    if (att.email) attendees.push({ email: att.email, displayName: att.displayName ? `${att.displayName}${att.role ? ' (' + att.role + ')' : ''}` : att.email });
-  }
+  // Sin attendees — service account no puede invitar. Notificaciones vía Resend.
 
   const descriptionParts = [];
   if (patient) descriptionParts.push(`Paciente: ${patient}`);
@@ -94,17 +85,16 @@ function buildEventResource({ patient, procedure, doctor, professionalEmail, pat
     description: descriptionParts.join('\n'),
     start: { dateTime: start.toISOString(), timeZone: 'America/Bogota' },
     end: { dateTime: end.toISOString(), timeZone: 'America/Bogota' },
-    ...(attendees.length > 0 && { attendees }),
   };
 }
 
-async function createEvent(calendarId, eventResource, sendInvite) {
+async function createEvent(calendarId, eventResource) {
   const auth = getGoogleAuth();
   const cal = google.calendar({ version: 'v3', auth });
   const res = await cal.events.insert({
     calendarId,
     resource: eventResource,
-    sendUpdates: sendInvite ? 'all' : 'none',
+    sendUpdates: 'none',
   });
   return res.data;
 }
@@ -443,7 +433,7 @@ Este asistente NO es un canal de autoagendamiento para pacientes.`;
           try {
             const eventResource = buildEventResource({ patient, procedure, doctor, professionalEmail, patientEmail, extraAttendees, date, startTime, endTime, location, notes, agendadoPor: userName });
             const hasAnyAttendee = !!(patientEmail || professionalEmail || extraAttendees.length > 0);
-            const created = await createEvent(calendarId, eventResource, hasAnyAttendee);
+            const created = await createEvent(calendarId, eventResource);
             eventCreated = true;
             // Log de trazabilidad
             await logChatAction({ userName, isAdmin, userMessage: messages[messages.length - 1]?.content || '', action: 'crear_cita', calendarLabel, patient, date, success: true });
