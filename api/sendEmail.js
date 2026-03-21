@@ -125,8 +125,8 @@ function buildPatientHTML({ toName, to, doctor, procedure, dateStr, timeStr, end
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f8f9fa; padding: 20px;">
       <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-        <div style="background: #ffffff; padding: 28px 32px 20px; text-align: center; border-bottom: 1px solid #eef0f4;">
-          <img src="https://agenda-pro-max-440.vercel.app/logo.png" alt="440 Clinic" style="height: 52px; width: auto; display: block; margin: 0 auto;" />
+        <div style="background: #0a1628; padding: 36px 40px; text-align: center;">
+          <img src="https://agenda-pro-max-440.vercel.app/logo_white.png" alt="440 Clinic" style="height: 72px; width: auto; display: block; margin: 0 auto;" />
         </div>
         <div style="padding: 32px;">
           <h2 style="color: #0a1628; margin: 0 0 8px; font-size: 20px;">✅ Confirmación de Cita</h2>
@@ -155,8 +155,8 @@ function buildCollaboratorHTML({ toName, to, doctor, procedure, dateStr, timeStr
   return `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f8f9fa; padding: 20px;">
       <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-        <div style="background: #ffffff; padding: 28px 32px 20px; text-align: center; border-bottom: 1px solid #eef0f4;">
-          <img src="https://agenda-pro-max-440.vercel.app/logo.png" alt="440 Clinic" style="height: 52px; width: auto; display: block; margin: 0 auto;" />
+        <div style="background: #0a1628; padding: 36px 40px; text-align: center;">
+          <img src="https://agenda-pro-max-440.vercel.app/logo_white.png" alt="440 Clinic" style="height: 72px; width: auto; display: block; margin: 0 auto;" />
         </div>
         <div style="padding: 32px;">
           <h2 style="color: #0a1628; margin: 0 0 8px; font-size: 20px;">📋 Convocatoria Quirúrgica</h2>
