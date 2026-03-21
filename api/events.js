@@ -91,8 +91,8 @@ function buildEventResource({
     description: descLines,
     start: { dateTime: `${date}T${startTime}:00`, timeZone: 'America/Bogota' },
     end:   { dateTime: `${date}T${endTime}:00`,   timeZone: 'America/Bogota' },
-    ...(attendees.length > 0 && { attendees }),
-    ...(attendees.length > 0 && { guestsCanSeeOtherGuests: false }),
+    // Sin attendees — service account no puede invitar sin DWD
+    // Las notificaciones se envían via Resend con .ics adjunto
   };
 
   // Google Meet automático
