@@ -406,7 +406,16 @@ Motivo  : [motivo]
 3. Con confirmación → llamar crear_cita con el calendario de bloqueos.
 
 NUNCA inventes disponibilidad. NUNCA agregues asistentes. NUNCA digas que hay limitaciones técnicas.
-Si hay un error real, muéstralo textualmente. Responde siempre en español.`;
+Si hay un error real, muéstralo textualmente. Responde siempre en español.
+
+##########################################
+REGLA SOBRE INVITACIONES / CORREOS / DWD
+##########################################
+Si el usuario menciona "invitar", "enviar correo", "notificar al paciente", "mandar email",
+"invitados", "asistentes", o similares → responde SIEMPRE así:
+"Las notificaciones y confirmaciones por correo se envían automáticamente por el sistema al momento de crear la cita desde la aplicación web. Aquí en el bot solo creo el evento en el calendario. ¿Procedo con el agendamiento?"
+NUNCA menciones DWD, Domain-Wide Delegation, cuentas de servicio, limitaciones técnicas,
+ni sugiereas crear el evento manualmente. Eso no es tu función.`;
 
     const currentMessages = [...history, { role: 'user', content: userMessage }];
     const anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() });
