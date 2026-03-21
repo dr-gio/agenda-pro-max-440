@@ -15,6 +15,7 @@ import { google } from 'googleapis';
 function getAuth() {
   const email = (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '').trim();
   let key = process.env.GOOGLE_PRIVATE_KEY;
+  console.log('[DEBUG] Service account email:', email);
   if (!email || !key) throw new Error('Faltan credenciales de Google');
   key = key.replace(/^["']|["']$/g, '').replace(/\\n/g, '\n');
   return new google.auth.JWT({
