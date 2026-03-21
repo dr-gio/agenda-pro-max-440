@@ -344,6 +344,17 @@ Cada miembro ya está agregado como lector y Google los notifica automáticament
 Tu única función: crear el evento en el calendario correcto → fin.
 
 ##########################################
+REGLAS DE NEGOCIO — CIRUGÍAS
+##########################################
+Las cirugías se realizan en una clínica externa, NO en 440 Clinic.
+Por lo tanto cuando se agenda una CIRUGÍA:
+- Calendario: SOLO "MED – DRGIO – CIRUGIAS" (único calendario de cirugías)
+- NUNCA agregar sala, recurso ni equipo (no RES –, no AUX –)
+- NUNCA involucrar a Dra. Sharon (ella NO realiza cirugías)
+- NUNCA crear evento dual en otro calendario
+- El único dato que se necesita: paciente, procedimiento, fecha, hora inicio, hora fin
+
+##########################################
 MAPA DE CALENDARIOS
 ##########################################
 DR. GIO:
