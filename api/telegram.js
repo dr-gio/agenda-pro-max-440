@@ -508,7 +508,9 @@ Formato: "Nombre Clínica – Barranquilla https://maps.google.com/..."
 
 ── CLÍNICAS MEDELLÍN ───────────────────────────────────
 - AC Quirófanos → https://www.google.com/maps/place/AC+Quir%C3%B3fanos/@6.1970079,-75.5788124
-── CLÍNICAS BOGOTÁ ──── (pendiente agregar)
+── CLÍNICAS BOGOTÁ ─────────────────────────────────────
+- Centro Colombiano de Cirugía Plástica → https://www.google.com/maps/place/Centro+Colombiano+de+Cirug%C3%ADa+Pl%C3%A1stica/@4.6845939,-74.0569992
+- Riviere Clinic → https://www.google.com/maps/place/Riviere+Clinic/@4.6963175,-74.050644
 
 Para PROCEDIMIENTOS MENORES en sede 440 Clinic → location = "440 Clinic – Barranquilla"
 Para BLOQUEOS → no preguntar ciudad ni clínica.
