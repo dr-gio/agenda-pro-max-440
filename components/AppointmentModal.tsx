@@ -170,11 +170,11 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
     meetLink: '',
     createMeet: true,
   });
-  const [extraAttendees, setExtraAttendees] = useState<{ email: string; displayName: string; role: string; type: 'patient' | 'collaborator' }[]>([]);
+  const [extraAttendees, setExtraAttendees] = useState<{ email: string; displayName: string; role: string }[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const addAttendee = () => setExtraAttendees(a => [...a, { email: '', displayName: '', role: '', type: 'collaborator' }]);
+  const addAttendee = () => setExtraAttendees(a => [...a, { email: '', displayName: '', role: '' }]);
   const removeAttendee = (i: number) => setExtraAttendees(a => a.filter((_, idx) => idx !== i));
   const updateAttendee = (i: number, field: 'email' | 'displayName' | 'role', val: string) =>
     setExtraAttendees(a => a.map((att, idx) => idx === i ? { ...att, [field]: val } : att));
@@ -424,16 +424,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
             {extraAttendees.map((att, i) => (
               <div key={i} className="bg-white border border-amber-100 rounded-xl p-3 space-y-2">
                 <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <button type="button" onClick={() => updateAttendee(i, 'type', 'patient')}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${att.type === 'patient' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
-                      👤 Paciente
-                    </button>
-                    <button type="button" onClick={() => updateAttendee(i, 'type', 'collaborator')}
-                      className={`px-2 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${att.type === 'collaborator' ? 'bg-amber-500 text-white' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}>
-                      🩺 Colaborador
-                    </button>
-                  </div>
+                  <span className="text-[10px] font-black text-amber-500 uppercase tracking-widest">🩺 Colaborador #{i + 1}</span>
                   <button
                     type="button"
                     onClick={() => removeAttendee(i)}
