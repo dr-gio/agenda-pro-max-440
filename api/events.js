@@ -21,7 +21,7 @@ function getAuth() {
     email,
     key,
     scopes: ['https://www.googleapis.com/auth/calendar'],
-    subject: 'labelleza@440clinic.com', // DWD: impersonar dueño de calendarios
+    subject: 'drgio@440clinic.com', // DWD: impersonar admin del Workspace
   });
 }
 
