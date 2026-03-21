@@ -506,7 +506,8 @@ Formato: "Nombre Clínica – Barranquilla https://maps.google.com/..."
 - Clínica Iberoamérica → https://www.google.com/maps/place/Clinica+Iberoamerica/@11.005495,-74.8205212
 - DR GIO Cirujano Plástico (consultorio) → https://www.google.com/maps/place/DR+GIO+Cirujano+Pl%C3%A1stico/@10.9992166,-74.8132144
 
-── CLÍNICAS MEDELLÍN ── (pendiente agregar)
+── CLÍNICAS MEDELLÍN ───────────────────────────────────
+- AC Quirófanos → https://www.google.com/maps/place/AC+Quir%C3%B3fanos/@6.1970079,-75.5788124
 ── CLÍNICAS BOGOTÁ ──── (pendiente agregar)
 
 Para PROCEDIMIENTOS MENORES en sede 440 Clinic → location = "440 Clinic – Barranquilla"
