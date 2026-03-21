@@ -11,6 +11,7 @@
  */
 
 import { google } from 'googleapis';
+import { sendAppointmentEmail } from './sendEmail.js';
 
 function getAuth() {
   const email = (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '').trim();
@@ -167,6 +168,25 @@ export default async function handler(req, res) {
           conferenceDataVersion: confVer,
           resource: { ...eventBody, attendees: undefined },
         }).catch(err => console.error('[events] dual-write sala falló (no crítico):', err.message));
+      }
+
+      // Enviar emails con .ics a paciente y colaboradores externos
+      const emailRecipients = [];
+      if (patientEmail) emailRecipients.push({ email: patientEmail, name: patient });
+      for (const att of extraAttendees) {
+        if (att.email) emailRecipients.push({ email: att.email, name: att.displayName });
+      }
+      if (emailRecipients.length > 0) {
+        const emailData = {
+          title: eventBody.summary,
+          procedure, doctor,
+          start: `${date}T${startTime}:00`,
+          end: `${date}T${endTime}:00`,
+          location, notes,
+        };
+        await Promise.all(
+          emailRecipients.map(r => sendAppointmentEmail({ to: r.email, toName: r.name, ...emailData }).catch(e => console.error('[email] fallo envío a', r.email, e.message)))
+        );
       }
 
       return res.status(201).json({ success: true, event: event.data });
