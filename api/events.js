@@ -119,7 +119,7 @@ export default async function handler(req, res) {
     const cal  = google.calendar({ version: 'v3', auth });
 
     const hasInvitees = (body) =>
-      !!(body?.patientEmail || (body?.extraAttendees?.length > 0));
+      !!(body?.patientEmail || (body?.extraAttendees?.length > 0)); // solo para lógica de email Resend
 
     // ── CREAR ──────────────────────────────────────────────────────────────
     if (req.method === 'POST') {
@@ -147,7 +147,7 @@ export default async function handler(req, res) {
         isVirtual, createMeet, meetLink,
       });
 
-      const sendUpd = hasInvitees(req.body) ? 'all' : 'none';
+      // sendUpdates siempre 'none' — notificaciones via Resend
       const confVer = isVirtual && createMeet ? 1 : 0;
 
       // Calendario principal = el del profesional/servicio
