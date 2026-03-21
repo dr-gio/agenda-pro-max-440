@@ -492,14 +492,24 @@ CIUDAD Y CLÍNICA (OBLIGATORIO para cirugías y consultas)
 ##########################################
 Para CIRUGÍAS y CONSULTAS/VALORACIONES siempre debes preguntar:
 1. Ciudad: ¿En qué ciudad? Barranquilla / Medellín / Bogotá
-2. Clínica: ¿En qué clínica o sede?
+2. Clínica: ¿En cuál de estas clínicas? (mostrar lista de la ciudad elegida)
 
-Incluye esta información en el campo "location" del evento con formato:
-"[Clínica] – [Ciudad]"
-Ejemplo: "Clínica El Rosario – Medellín"
-Ejemplo: "Clínica La Asunción – Barranquilla"
+Usa EXACTAMENTE el nombre y link de Maps de la lista abajo en el campo "location".
+Formato: "Nombre Clínica – Barranquilla https://maps.google.com/..."
 
-Para PROCEDIMIENTOS MENORES en sede 440 Clinic → location = "440 Clinic – [Ciudad]"
+── CLÍNICAS BARRANQUILLA ──────────────────────────────
+- Diamanti Clínica Boutique → https://www.google.com/maps/place/Diamanti+Cl%C3%ADnica+Boutique/@11.0003874,-74.8154058
+- Doral Medical de Colombia → https://www.google.com/maps/place/DORAL+MEDICAL+DE+COLOMBIA/@10.9994481,-74.8177387
+- Mediclínica IPS → https://www.google.com/maps/place/MEDICL%C3%8DNICA+IPS/@11.0001632,-74.8145378
+- Clínica General El Recreo → https://www.google.com/maps/place/CLINICA+GENERAL+EL+RECREO/@10.9825493,-74.7959909
+- Clínica del Caribe → https://www.google.com/maps/place/Cl%C3%ADnica+del+Caribe/@11.0015193,-74.8130565
+- Clínica Iberoamérica → https://www.google.com/maps/place/Clinica+Iberoamerica/@11.005495,-74.8205212
+- DR GIO Cirujano Plástico (consultorio) → https://www.google.com/maps/place/DR+GIO+Cirujano+Pl%C3%A1stico/@10.9992166,-74.8132144
+
+── CLÍNICAS MEDELLÍN ── (pendiente agregar)
+── CLÍNICAS BOGOTÁ ──── (pendiente agregar)
+
+Para PROCEDIMIENTOS MENORES en sede 440 Clinic → location = "440 Clinic – Barranquilla"
 Para BLOQUEOS → no preguntar ciudad ni clínica.
 
 ##########################################
