@@ -536,22 +536,27 @@ NUNCA menciones DWD, Domain-Wide Delegation, ni limitaciones técnicas. No exist
               }
             }
 
+            // Log a Supabase (no crítico — no debe interrumpir el flujo)
+            try {
+              await supabase.from('telegram_logs').insert({
+                telegram_user_id: String(body.message.from?.id),
+                telegram_username: username,
+                chat_id: String(chatId),
+                message: userMessage,
+                action: 'crear_cita',
+                calendar_result: JSON.stringify({ calendarLabel, patient, date, startTime }),
+                created_at: new Date().toISOString(),
+              });
+            } catch (logErr) {
+              console.error('[telegram_logs] no crítico:', logErr.message);
+            }
+
             result = JSON.stringify({
               success: true,
               eventId: created.id,
               calendarLabel, patient, date, startTime,
               emailsSent,
             });
-
-            await supabase.from('telegram_logs').insert({
-              telegram_user_id: String(body.message.from?.id),
-              telegram_username: username,
-              chat_id: String(chatId),
-              message: userMessage,
-              action: 'crear_cita',
-              calendar_result: JSON.stringify({ calendarLabel, patient, date, startTime }),
-              created_at: new Date().toISOString(),
-            }).catch(() => {});
 
           } else if (tc.name === 'consultar_disponibilidad') {
             const { calendarId, calendarLabel, date, startTime, endTime } = tc.input;
