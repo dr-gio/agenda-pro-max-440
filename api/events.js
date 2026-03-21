@@ -171,23 +171,23 @@ export default async function handler(req, res) {
       }
 
       // Enviar emails con .ics a paciente y colaboradores externos
-      const emailRecipients = [];
-      if (patientEmail) emailRecipients.push({ email: patientEmail, name: patient });
+      const emailBase = {
+        title: eventBody.summary,
+        procedure, doctor,
+        start: `${date}T${startTime}:00`,
+        end: `${date}T${endTime}:00`,
+        location, notes,
+      };
+      const emailPromises = [];
+      if (patientEmail) {
+        emailPromises.push(sendAppointmentEmail({ to: patientEmail, toName: patient, type: 'patient', ...emailBase }).catch(e => console.error('[email] paciente:', e.message)));
+      }
       for (const att of extraAttendees) {
-        if (att.email) emailRecipients.push({ email: att.email, name: att.displayName });
+        if (att.email) {
+          emailPromises.push(sendAppointmentEmail({ to: att.email, toName: att.displayName, type: 'collaborator', ...emailBase }).catch(e => console.error('[email] colaborador:', e.message)));
+        }
       }
-      if (emailRecipients.length > 0) {
-        const emailData = {
-          title: eventBody.summary,
-          procedure, doctor,
-          start: `${date}T${startTime}:00`,
-          end: `${date}T${endTime}:00`,
-          location, notes,
-        };
-        await Promise.all(
-          emailRecipients.map(r => sendAppointmentEmail({ to: r.email, toName: r.name, ...emailData }).catch(e => console.error('[email] fallo envío a', r.email, e.message)))
-        );
-      }
+      if (emailPromises.length > 0) await Promise.all(emailPromises);
 
       return res.status(201).json({ success: true, event: event.data });
     }
