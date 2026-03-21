@@ -22,7 +22,6 @@ function getAuth() {
     email,
     key,
     scopes: ['https://www.googleapis.com/auth/calendar'],
-    subject: 'drgio@440clinic.com',
   });
 }
 
@@ -155,7 +154,7 @@ export default async function handler(req, res) {
 
       const event = await cal.events.insert({
         calendarId: primaryCalId,
-        sendUpdates: sendUpd,
+        sendUpdates: 'none',
         conferenceDataVersion: confVer,
         resource: eventBody,
       });
@@ -203,7 +202,7 @@ export default async function handler(req, res) {
       const event = await cal.events.patch({
         calendarId: primaryCalId,
         eventId: id,
-        sendUpdates: hasInvitees(req.body) ? 'all' : 'none',
+        sendUpdates: 'none',
         conferenceDataVersion: isVirtual && createMeet ? 1 : 0,
         resource,
       });
@@ -218,7 +217,7 @@ export default async function handler(req, res) {
       await cal.events.delete({
         calendarId: resourceCalendarId,
         eventId: id,
-        sendUpdates: 'all',
+        sendUpdates: 'none',
       });
       return res.status(200).json({ success: true });
     }
