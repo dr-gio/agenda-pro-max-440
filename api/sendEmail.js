@@ -1,7 +1,7 @@
 import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM = '440 Clinic <citas@440clinic.com.co>';
+const FROM = '440 Clinic <citas@440clinic.online>';
 
 function buildICS({ title, description, location, start, end }) {
   const fmt = (d) => new Date(d).toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
@@ -18,7 +18,7 @@ function buildICS({ title, description, location, start, end }) {
     `SUMMARY:${title}`,
     `DESCRIPTION:${description}`,
     `LOCATION:${location || '440 Clinic – Cartagena'}`,
-    `ORGANIZER;CN=440 Clinic:mailto:citas@440clinic.com.co`,
+    `ORGANIZER;CN=440 Clinic:mailto:citas@440clinic.online`,
     'STATUS:CONFIRMED',
     'END:VEVENT',
     'END:VCALENDAR',
