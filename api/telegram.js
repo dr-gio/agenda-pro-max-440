@@ -146,6 +146,26 @@ async function listCalendarEvents(calendarId, date) {
   return res.data.items || [];
 }
 
+// Convierte "HH:MM" a minutos desde medianoche
+function toMin(t) {
+  const [h, m] = (t || '00:00').split(':').map(Number);
+  return h * 60 + (m || 0);
+}
+
+// Detecta si el slot solicitado (reqStart, reqEnd) choca con algún evento existente
+function detectConflict(events, reqStart, reqEnd) {
+  if (!reqStart) return null;
+  const s = toMin(reqStart);
+  const e = reqEnd ? toMin(reqEnd) : s + 60; // si no hay fin, asumir 1h
+  for (const ev of events) {
+    const evS = toMin(ev.start);
+    const evE = toMin(ev.end);
+    // Hay solapamiento si s < evE && evS < e
+    if (s < evE && evS < e) return ev;
+  }
+  return null;
+}
+
 // ─── Memoria conversacional ───────────────────────────────────────────────────
 
 async function loadHistory(supabase, chatId) {
@@ -246,13 +266,15 @@ const TOOLS = [
   },
   {
     name: 'consultar_disponibilidad',
-    description: 'Consulta los eventos de un calendario en una fecha. SIEMPRE consultar antes de crear.',
+    description: 'Consulta los eventos de un calendario en una fecha y detecta automáticamente si el horario solicitado está ocupado. SIEMPRE consultar antes de crear.',
     input_schema: {
       type: 'object',
       properties: {
         calendarId:    { type: 'string', description: 'Google Calendar ID a consultar' },
         calendarLabel: { type: 'string', description: 'Nombre del calendario' },
         date:          { type: 'string', description: 'Fecha YYYY-MM-DD' },
+        startTime:     { type: 'string', description: 'Hora inicio deseada HH:MM — para detección automática de conflictos' },
+        endTime:       { type: 'string', description: 'Hora fin deseada HH:MM — para detección automática de conflictos' },
       },
       required: ['calendarId', 'calendarLabel', 'date'],
     },
@@ -389,7 +411,9 @@ FLUJO PARA AGENDAR CITA (con chequeo de bloqueos)
 2. VERIFICACIÓN DE DISPONIBILIDAD — llama consultar_disponibilidad DOS VECES:
    a) En el calendario del servicio (ej: MED – DRGIO – CONSULTAS)
    b) En el calendario de bloqueos del doctor (AUX – BLOQUEOS – DRGIO o AUX – BLOQUEOS – SHARON)
-   Si hay conflicto en CUALQUIERA de los dos → informa al usuario y ofrece alternativas.
+   SIEMPRE incluye startTime y endTime en la consulta para que el sistema detecte conflictos automáticamente.
+   El resultado incluirá "available: true/false" y un campo "conflict" con el detalle exacto.
+   Si available=false en CUALQUIERA de los dos calendarios → el horario está OCUPADO, informa al usuario y ofrece alternativas.
    Para otros profesionales (Katherine, Lia, etc.) → revisar solo su calendario.
 3. Si está disponible, muestra resumen y espera "sí":
 
@@ -519,18 +543,28 @@ NUNCA menciones DWD, Domain-Wide Delegation, ni limitaciones técnicas. No exist
             }).catch(() => {});
 
           } else if (tc.name === 'consultar_disponibilidad') {
-            const { calendarId, calendarLabel, date } = tc.input;
-            const events = await listCalendarEvents(calendarId, date);
+            const { calendarId, calendarLabel, date, startTime, endTime } = tc.input;
+            const raw = await listCalendarEvents(calendarId, date);
+
+            const fmt = (dt) => dt
+              ? new Date(dt).toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Bogota' })
+              : 'Todo el día';
+
+            const events = raw.map(e => ({
+              title: e.summary || 'Sin título',
+              start: fmt(e.start?.dateTime),
+              end:   fmt(e.end?.dateTime),
+            }));
+
+            const conflict = detectConflict(events, startTime, endTime);
+
             result = JSON.stringify({
               calendarLabel, date,
-              events: events.map(e => ({
-                title: e.summary,
-                start: e.start?.dateTime
-                  ? new Date(e.start.dateTime).toLocaleTimeString('es-CO', {
-                      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'America/Bogota',
-                    })
-                  : 'Todo el día',
-              })),
+              available: !conflict,
+              conflict: conflict
+                ? `⛔ OCUPADO: "${conflict.title}" de ${conflict.start} a ${conflict.end} se solapa con el horario solicitado ${startTime}–${endTime || '(+1h)'}.`
+                : startTime ? `✅ DISPONIBLE: El horario ${startTime}–${endTime || '(+1h)'} está libre.` : null,
+              events,
             });
           }
         } catch (err) {
