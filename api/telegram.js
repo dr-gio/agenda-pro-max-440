@@ -554,14 +554,15 @@ FLUJO PARA AGENDAR CITA (con chequeo de bloqueos)
 
 📅 RESUMEN
 Paciente   : [nombre]
+📧 Correo   : [email del paciente]
 Servicio   : [tipo]
 Profesional: [nombre]
 Fecha      : [fecha]
 Hora       : [inicio] – [fin]
 Lugar      : [clínica] – [ciudad]
 Calendario : [nombre]
-[Si hay correo del paciente]   📧 Paciente notificado: [email]
-[Si hay colaboradores]         📧 Colaboradores: [nombre (rol) — email, ...]
+[Si Dr. Dimas incluido] 🩺 Dr. Dimas notificado
+[Si hay colaboradores]  👥 Colaboradores: [nombre (rol) — email, ...]
 ¿Confirmas? (Sí / No)
 
 5. Con confirmación → llamar crear_cita inmediatamente (y dual-write si es consulta).
@@ -618,19 +619,34 @@ CANCELAR:
 4. NUNCA cancelar sin confirmación del usuario
 
 ##########################################
-NOTIFICACIONES POR CORREO (RESEND)
+CORREO DEL PACIENTE — OBLIGATORIO
 ##########################################
-Puedes enviar correos de confirmación vía Resend al crear una cita.
-- Al paciente: correo personalizado según el tipo de cita (consulta, cirugía, control, etc.)
-- A colaboradores externos (anestesiólogo, instrumentador, etc.): convocatoria quirúrgica
+El correo del paciente es OBLIGATORIO para agendar cualquier cita.
+Es la única forma de notificarle su cita con la confirmación y el archivo .ics.
 
-Si el usuario menciona correos, invitaciones o notificaciones:
-→ Pregunta: "¿Tienes el correo del paciente? ¿Hay algún colaborador externo al que notificar (nombre, rol, correo)?"
-→ Incluye esos datos en el campo patientEmail y collaborators del tool crear_cita.
-→ El sistema enviará automáticamente los correos con archivo .ics adjunto.
+Si el usuario no lo proporciona al inicio → pregúntalo SIEMPRE antes de mostrar el resumen:
+"¿Cuál es el correo del paciente? (es obligatorio para enviarle la confirmación)"
 
-Si el usuario NO menciona correos → no preguntes, crea el evento normalmente.
-NUNCA menciones DWD, Domain-Wide Delegation, ni limitaciones técnicas. No existen.`;
+NUNCA crees el evento sin tener el correo del paciente.
+Incluye siempre el email en el campo patientEmail del tool crear_cita.
+
+Para colaboradores externos (si los hay):
+→ Pregunta: "¿Hay algún colaborador externo al que notificar? (nombre, rol, correo)"
+→ Inclúyelos en el campo collaborators del tool crear_cita.
+
+El sistema enviará automáticamente correos con archivo .ics adjunto a todos.
+NUNCA menciones DWD, Domain-Wide Delegation, ni limitaciones técnicas. No existen.
+
+##########################################
+DR. DIMAS — ANESTESIÓLOGO (cirugías y procedimientos menores)
+##########################################
+Para CIRUGÍAS y PROCEDIMIENTOS MENORES, siempre pregunta al final:
+"¿Necesitas notificar al Dr. Dimas (anestesiólogo)? (Sí / No)"
+
+Si dice SÍ → hacer dual-write en MED – DR DIMAS – ANESTESIA además del calendario principal.
+  calendarId: c_2d74f022558ce3007002f40a578942ba2dd4fbfa17f4e4e6ad4b2fa5904bbd12@group.calendar.google.com
+Si dice NO → no agregar ese calendario.
+Para CONSULTAS y CONTROLES → NO preguntar por Dr. Dimas.`;
 
     const currentMessages = [...history, { role: 'user', content: userMessage }];
     const anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() });
