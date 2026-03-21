@@ -149,7 +149,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ calendars, selectedDate, isAdmin, use
       {/* Floating button */}
       <button
         onClick={() => setIsOpen(prev => !prev)}
-        className={`fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 ${
+        className={`fixed bottom-6 right-4 sm:right-6 z-50 w-14 h-14 rounded-full shadow-2xl flex items-center justify-center transition-all duration-300 ${
           isOpen
             ? 'bg-slate-700 hover:bg-slate-800 rotate-0'
             : 'bg-blue-600 hover:bg-blue-700 hover:scale-110'
@@ -173,7 +173,7 @@ const ChatBox: React.FC<ChatBoxProps> = ({ calendars, selectedDate, isAdmin, use
 
       {/* Chat panel */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 z-50 w-[360px] sm:w-[420px] max-h-[600px] bg-white rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
+        <div className="fixed bottom-24 right-4 sm:right-6 z-50 w-[calc(100vw-32px)] sm:w-[380px] max-w-[420px] max-h-[600px] bg-white rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden animate-in slide-in-from-bottom-4 duration-200">
 
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-5 py-4 flex items-center justify-between flex-shrink-0">

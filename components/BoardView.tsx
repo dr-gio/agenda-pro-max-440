@@ -102,7 +102,7 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
         />
       )}
 
-      <header className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-8 px-2">
+      <header className="flex flex-col sm:flex-row justify-between items-center mb-8 gap-3 sm:gap-8 px-2">
         <div className="flex flex-col sm:flex-row items-center gap-4 sm:gap-8 w-full sm:w-auto">
           <img src="/logo.png" alt="440 Clinic Logo" className="h-20 sm:h-24 w-auto object-contain" />
           <div className="hidden sm:block h-12 w-px bg-slate-200"></div>
@@ -131,24 +131,25 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
           {isAdmin && (
             <button
               onClick={() => setShowBlockModal(true)}
-              className="flex-1 sm:flex-initial px-6 py-3 bg-red-50 text-red-600 border border-red-200 rounded-2xl hover:bg-red-100 transition-all text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
+              className="flex-1 sm:flex-initial px-3 sm:px-6 py-3 bg-red-50 text-red-600 border border-red-200 rounded-2xl hover:bg-red-100 transition-all text-[11px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
             >
-              🔒 Bloquear
+              🔒 <span className="hidden sm:inline">Bloquear</span>
             </button>
           )}
           {isAdmin && (
             <button
               onClick={() => window.location.hash = AppRoute.ADMIN}
-              className="flex-1 sm:flex-initial px-6 py-3 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-all text-[11px] font-black uppercase tracking-widest shadow-sm text-slate-600"
+              className="flex-1 sm:flex-initial px-3 sm:px-6 py-3 bg-white border border-slate-200 rounded-2xl hover:bg-slate-50 transition-all text-[11px] font-black uppercase tracking-widest shadow-sm text-slate-600 flex items-center justify-center gap-2"
             >
-              Configurar
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+              <span className="hidden sm:inline">Configurar</span>
             </button>
           )}
           <button
             onClick={() => window.location.hash = AppRoute.TV}
-            className="flex-1 sm:flex-initial px-6 py-3 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 transition-all text-[11px] font-black uppercase tracking-widest shadow-xl shadow-slate-900/10 flex items-center justify-center gap-2"
+            className="flex-1 sm:flex-initial px-3 sm:px-6 py-3 bg-slate-900 text-white rounded-2xl hover:bg-slate-800 transition-all text-[11px] font-black uppercase tracking-widest shadow-xl shadow-slate-900/10 flex items-center justify-center gap-2"
           >
-            <span>Modo TV</span>
+            <span className="hidden sm:inline">Modo TV</span>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path></svg>
           </button>
           <button onClick={onLogout} className="p-3 text-slate-300 hover:text-red-500 transition-colors">
@@ -164,7 +165,7 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
               <button
                 key={type}
                 onClick={() => setSelectedType(type)}
-                className={`flex-1 px-6 sm:px-8 py-3 rounded-xl text-xs sm:text-sm font-black uppercase whitespace-nowrap transition-all ${selectedType === type ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
+                className={`flex-1 px-3 sm:px-6 lg:px-8 py-3 rounded-xl text-xs sm:text-sm font-black uppercase whitespace-nowrap transition-all ${selectedType === type ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-600'}`}
               >
                 {type === 'resource' ? 'Salas' : type === 'professional' ? 'Doctores' : type === 'general' ? 'Otros' : 'Todo'}
               </button>

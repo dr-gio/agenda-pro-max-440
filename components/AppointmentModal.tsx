@@ -297,10 +297,10 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-[2rem] shadow-2xl w-full max-w-[95vw] sm:max-w-lg max-h-[90vh] overflow-y-auto">
 
         {/* Header */}
-        <div className="p-7 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white rounded-t-[2rem] z-10">
+        <div className="p-4 sm:p-7 border-b border-slate-100 flex justify-between items-center sticky top-0 bg-white rounded-t-[2rem] z-10">
           <div>
             <h2 className="text-xl font-black text-slate-900">
               {editEvent ? 'Editar Cita' : 'Nueva Cita'}
@@ -314,7 +314,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-7 space-y-5">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-7 space-y-5">
 
           {/* ASIGNACIÓN — Profesional (principal) + Sala (secundaria) */}
           <div className="p-4 bg-blue-50/60 border border-blue-100 rounded-2xl space-y-4">
@@ -435,7 +435,7 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
                     </svg>
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div>
                     <label className={labelClass}>Nombre</label>
                     <input
@@ -495,8 +495,8 @@ const AppointmentModal: React.FC<AppointmentModalProps> = ({ calendars, onClose,
           </div>
 
           {/* FECHA Y HORAS */}
-          <div className="grid grid-cols-3 gap-3">
-            <div className="col-span-3 sm:col-span-1">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="col-span-1 sm:col-span-1">
               <label className={labelClass}>Fecha</label>
               <input
                 type="date"
