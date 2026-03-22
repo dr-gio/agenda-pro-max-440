@@ -9,7 +9,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import { google } from 'googleapis';
 import { createClient } from '@supabase/supabase-js';
 import { createHash } from 'crypto';
-import { sendAppointmentEmail } from './sendEmail.js';
+import { sendAppointmentEmail, sendCancellationEmail } from './sendEmail.js';
 
 // ─── Helpers básicos ──────────────────────────────────────────────────────────
 
@@ -341,7 +341,11 @@ const TOOLS = [
         calendarLabel: { type: 'string', description: 'Nombre del calendario' },
         eventId:       { type: 'string', description: 'ID del evento a cancelar' },
         patient:       { type: 'string', description: 'Nombre del paciente (para confirmación)' },
-        date:          { type: 'string', description: 'Fecha del evento (para confirmación)' },
+        date:          { type: 'string', description: 'Fecha del evento YYYY-MM-DD' },
+        startTime:     { type: 'string', description: 'Hora inicio HH:MM' },
+        procedure:     { type: 'string', description: 'Tipo de procedimiento o cita' },
+        patientEmail:  { type: 'string', description: 'Email del paciente para notificar cancelación' },
+        doctor:        { type: 'string', description: 'Nombre del médico' },
       },
       required: ['calendarId', 'eventId'],
     },
@@ -670,7 +674,6 @@ Para CONSULTAS y CONTROLES → NO preguntar por Dr. Dimas.`;
       const toolCalls = response.content.filter(b => b.type === 'tool_use');
       if (!toolCalls.length) break;
 
-      console.error(`[BOT] tools llamados: ${toolCalls.map(t => t.name).join(', ')}`);
 
       loopMessages.push({ role: 'assistant', content: response.content });
       const toolResults = [];
@@ -683,7 +686,6 @@ Para CONSULTAS y CONTROLES → NO preguntar por Dr. Dimas.`;
                     date, startTime, endTime, location, notes,
                     patientEmail, collaborators = [] } = tc.input;
 
-            console.error(`[BOT] crear_cita → calendarId=${calendarId} patient=${patient} date=${date} start=${startTime}`);
 
             const created = await createCalendarEvent(calendarId, {
               patient, procedure, doctor,
@@ -728,7 +730,6 @@ Para CONSULTAS y CONTROLES → NO preguntar por Dr. Dimas.`;
               console.error('[telegram_logs] no crítico:', logErr.message);
             }
 
-            console.error(`[BOT] evento creado OK → eventId=${created.id}`);
 
             result = JSON.stringify({
               success: true,
@@ -739,7 +740,6 @@ Para CONSULTAS y CONTROLES → NO preguntar por Dr. Dimas.`;
 
           } else if (tc.name === 'buscar_evento') {
             const { calendarId, calendarLabel, query, dateFrom, dateTo } = tc.input;
-            console.error(`[BOT] buscar_evento → cal=${calendarLabel} query="${query}" ${dateFrom}→${dateTo}`);
             const found = await searchCalendarEvents(calendarId, query, dateFrom, dateTo);
             result = JSON.stringify({
               calendarLabel, query,
@@ -756,16 +756,25 @@ Para CONSULTAS y CONTROLES → NO preguntar por Dr. Dimas.`;
           } else if (tc.name === 'editar_cita') {
             const { calendarId, calendarLabel, eventId, patient, procedure, doctor,
                     date, startTime, endTime, location, notes } = tc.input;
-            console.error(`[BOT] editar_cita → eventId=${eventId} date=${date} start=${startTime}`);
             const updated = await updateCalendarEvent(calendarId, eventId, {
               patient, procedure, doctor, date, startTime, endTime, location, notes, agendadoPor: username,
             });
             result = JSON.stringify({ success: true, eventId: updated.id, calendarLabel, patient, date, startTime });
 
           } else if (tc.name === 'cancelar_cita') {
-            const { calendarId, calendarLabel, eventId, patient, date } = tc.input;
-            console.error(`[BOT] cancelar_cita → eventId=${eventId}`);
+            const { calendarId, calendarLabel, eventId, patient, date, startTime, procedure, patientEmail, doctor } = tc.input;
             await deleteCalendarEvent(calendarId, eventId);
+
+            // Notificar al paciente por Resend si tiene email
+            if (patientEmail && date) {
+              await sendCancellationEmail({
+                to: patientEmail,
+                toName: patient,
+                procedure, doctor, date,
+                startTime: startTime || '',
+              }).catch(e => console.error('[telegram email] cancelación:', e.message));
+            }
+
             result = JSON.stringify({ success: true, message: `Cita de ${patient || 'paciente'} el ${date || ''} cancelada correctamente.` });
 
           } else if (tc.name === 'consultar_disponibilidad') {
