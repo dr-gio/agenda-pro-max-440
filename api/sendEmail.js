@@ -207,7 +207,7 @@ export async function sendCancellationEmail({ to, toName, procedure, doctor, dat
               ${procedure ? `<tr><td style="padding: 6px 0; color: #666; font-size: 14px;">🔬 Procedimiento</td><td style="padding: 6px 0; color: #0a1628; font-weight: bold; font-size: 14px;">${procedure}</td></tr>` : ''}
             </table>
           </div>
-          <p style="color: #444; font-size: 14px;">Si necesitas reprogramar tu cita o tienes alguna pregunta, comunícate con nosotros por WhatsApp.</p>
+          <p style="color: #444; font-size: 14px;">Si deseas reprogramar tu cita o tienes alguna pregunta, comunícate directamente con tu asesora en 440 Clinic.</p>
         </div>
         <div style="background: #f0f4ff; padding: 20px; text-align: center;">
           <p style="color: #888; font-size: 12px; margin: 0;">440 Clinic Plastic Surgery · Barranquilla, Colombia</p>
