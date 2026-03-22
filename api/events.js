@@ -174,8 +174,8 @@ export default async function handler(req, res) {
       const emailBase = {
         title: eventBody.summary,
         procedure, doctor,
-        start: `${date}T${startTime}:00`,
-        end: `${date}T${endTime}:00`,
+        start: `${date}T${startTime}:00-05:00`,
+        end: `${date}T${endTime}:00-05:00`,
         location, notes,
       };
       const emailPromises = [];

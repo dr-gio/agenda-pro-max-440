@@ -695,8 +695,8 @@ Para CONSULTAS y CONTROLES → NO preguntar por Dr. Dimas.`;
             const emailBase = {
               title: [patient, procedure].filter(Boolean).join(' – ') || 'Cita Clínica',
               procedure, doctor,
-              start: `${date}T${startTime}:00`,
-              end:   `${date}T${endTime || startTime}:00`,
+              start: `${date}T${startTime}:00-05:00`,
+              end:   `${date}T${endTime || startTime}:00-05:00`,
               location, notes,
             };
             const emailsSent = [];
