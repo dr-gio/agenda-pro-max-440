@@ -95,7 +95,7 @@ const BLOQUEOS_MAP = {
 
 // ─── Google Calendar ──────────────────────────────────────────────────────────
 
-function buildEvent({ patient, procedure, doctor, date, startTime, endTime, location, notes, agendadoPor }) {
+function buildEvent({ patient, procedure, doctor, date, startTime, endTime, location, notes, agendadoPor, patientEmail }) {
   const title = [patient, procedure].filter(Boolean).join(' – ') || 'Cita Clínica';
 
   const start = `${date}T${startTime || '09:00'}:00`;
@@ -106,11 +106,12 @@ function buildEvent({ patient, procedure, doctor, date, startTime, endTime, loca
   })();
 
   const desc = [
-    patient    && `Paciente: ${patient}`,
-    procedure  && `Procedimiento: ${procedure}`,
-    doctor     && `Profesional: ${doctor}`,
-    notes      && `Notas: ${notes}`,
-    agendadoPor && `Agendado por: ${agendadoPor} (Telegram)`,
+    patient       && `Paciente: ${patient}`,
+    patientEmail  && `Email paciente: ${patientEmail}`,
+    procedure     && `Procedimiento: ${procedure}`,
+    doctor        && `Profesional: ${doctor}`,
+    notes         && `Notas: ${notes}`,
+    agendadoPor   && `Agendado por: ${agendadoPor} (Telegram)`,
     'Agendado via Bot Telegram — 440 Clinic',
   ].filter(Boolean).join('\n');
 
@@ -690,7 +691,7 @@ Para CONSULTAS y CONTROLES → NO preguntar por Dr. Dimas.`;
             const created = await createCalendarEvent(calendarId, {
               patient, procedure, doctor,
               date, startTime, endTime, location, notes,
-              agendadoPor: username,
+              agendadoPor: username, patientEmail,
             });
 
             // Enviar emails vía Resend

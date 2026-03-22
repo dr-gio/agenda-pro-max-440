@@ -181,6 +181,47 @@ function buildCollaboratorHTML({ toName, to, doctor, procedure, dateStr, timeStr
     </div>`;
 }
 
+export async function sendReminderEmail({ to, toName, procedure, doctor, date, timeStr, location }) {
+  const startDate = new Date(`${date}T00:00:00-05:00`);
+  const dateStr = startDate.toLocaleDateString('es-CO', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'America/Bogota',
+  });
+
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f8f9fa; padding: 20px;">
+      <div style="background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+        <div style="background: #0a1628; padding: 36px 40px; text-align: center;">
+          <img src="https://agenda-pro-max-440.vercel.app/logo_white.png" alt="440 Clinic" style="height: 72px; width: auto; display: block; margin: 0 auto;" />
+        </div>
+        <div style="padding: 32px;">
+          <h2 style="color: #0a1628; margin: 0 0 8px; font-size: 20px;">⏰ Recordatorio de Cita</h2>
+          <p style="color: #444; margin: 0 0 24px;">Hola <strong>${toName || to}</strong>, te recordamos que <strong>mañana</strong> tienes una cita en 440 Clinic.</p>
+          <div style="background: #f0f4ff; border-left: 4px solid #2563eb; border-radius: 8px; padding: 20px; margin-bottom: 24px;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr><td style="padding: 6px 0; color: #666; font-size: 14px; width: 130px;">📅 Fecha</td><td style="padding: 6px 0; color: #0a1628; font-weight: bold; font-size: 14px; text-transform: capitalize;">${dateStr}</td></tr>
+              ${timeStr ? `<tr><td style="padding: 6px 0; color: #666; font-size: 14px;">🕐 Hora</td><td style="padding: 6px 0; color: #0a1628; font-weight: bold; font-size: 14px;">${timeStr}</td></tr>` : ''}
+              ${doctor ? `<tr><td style="padding: 6px 0; color: #666; font-size: 14px;">👨‍⚕️ Doctor</td><td style="padding: 6px 0; color: #0a1628; font-weight: bold; font-size: 14px;">${doctor}</td></tr>` : ''}
+              ${procedure ? `<tr><td style="padding: 6px 0; color: #666; font-size: 14px;">🔬 Procedimiento</td><td style="padding: 6px 0; color: #0a1628; font-weight: bold; font-size: 14px;">${procedure}</td></tr>` : ''}
+              ${location ? `<tr><td style="padding: 6px 0; color: #666; font-size: 14px;">📍 Lugar</td><td style="padding: 6px 0; color: #0a1628; font-weight: bold; font-size: 14px;">${location}</td></tr>` : ''}
+            </table>
+          </div>
+          <p style="color: #444; font-size: 14px;">🔹 <strong>Llega 15 minutos antes</strong> de tu hora programada.<br>🔹 Si necesitas cancelar o reprogramar, comunícate con tu asesora a la brevedad.</p>
+        </div>
+        <div style="background: #f0f4ff; padding: 20px; text-align: center;">
+          <p style="color: #888; font-size: 12px; margin: 0;">440 Clinic Plastic Surgery · Barranquilla, Colombia</p>
+          <p style="color: #888; font-size: 12px; margin: 4px 0 0;">¡Te esperamos mañana! 💙</p>
+        </div>
+      </div>
+    </div>`;
+
+  return resend.emails.send({
+    from: FROM,
+    to: [to],
+    subject: `⏰ Recordatorio – Mañana tienes cita a las ${timeStr || 'la hora agendada'}`,
+    html,
+  });
+}
+
 export async function sendCancellationEmail({ to, toName, procedure, doctor, date, startTime }) {
   const startDate = new Date(`${date}T${startTime || '00:00'}:00-05:00`);
   const dateStr = startDate.toLocaleDateString('es-CO', {
