@@ -11,16 +11,6 @@ export default async function handler(req, res) {
         const email = (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || '').trim();
         let key = process.env.GOOGLE_PRIVATE_KEY;
 
-        console.log('--- Env Debug ---');
-        console.log('Email defined:', !!email);
-        console.log('Key defined:', !!key);
-        if (email) console.log('Email length:', email.length);
-        if (key) {
-            console.log('Key length:', key.length);
-            console.log('Key starts with:', key.substring(0, 30));
-        }
-        console.log('-----------------');
-
         if (!key || !email) {
             const missing = !key ? 'GOOGLE_PRIVATE_KEY' : 'GOOGLE_SERVICE_ACCOUNT_EMAIL';
             console.error(`Missing Google Credential: ${missing}`);

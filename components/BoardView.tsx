@@ -48,7 +48,7 @@ const BoardView: React.FC<BoardViewProps> = ({ session, onLogout }) => {
       loadData();
     });
     loadData();
-    const intervalId = setInterval(() => { loadData(); }, 60000);
+    const intervalId = setInterval(() => { loadData(); }, 300000); // refresca cada 5 min
     return () => {
       subscription.unsubscribe();
       clearInterval(intervalId);
