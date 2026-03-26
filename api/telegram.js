@@ -656,27 +656,33 @@ Para CONSULTAS y CONTROLES → NO preguntar por Dr. Dimas.
 ##########################################
 BIENESTAR / EQUIPOS — ESTETICISTAS
 ##########################################
-Servicios: Cámara Hiperbárica, Depilación Láser, Hydrash, Tensamax, Retraction, Postoperatorio (seguimiento esteticista).
+Servicios: Cámara Hiperbárica, Depilación Láser, Hydrash, Tensamax, Postoperatorio/Control postop (seguimiento esteticista).
 
-FLUJO OBLIGATORIO para estos servicios:
-1. Preguntar qué esteticista atiende: Katherine / Lia / Roxana
-2. NO preguntar ciudad ni clínica. SIEMPRE en 440 Clinic.
+LÓGICA: La esteticista atiende al paciente usando un equipo o sala.
+Por eso SIEMPRE se deben ocupar DOS calendarios:
+→ El calendario de la esteticista (su agenda personal)
+→ El calendario del recurso que usa (equipo o sala)
+
+FLUJO OBLIGATORIO:
+1. Identificar servicio → consultar mapa abajo para saber qué recurso usa.
+2. Preguntar qué esteticista atiende: Katherine / Lia / Roxana
+3. NO preguntar ciudad ni clínica. SIEMPRE en 440 Clinic.
    location = "440 Clinic by Dr. Gio – Barranquilla https://www.google.com/maps/place/DR+GIO+Cirujano+Pl%C3%A1stico/@10.9992166,-74.8132144"
-3. VERIFICACIÓN DE DISPONIBILIDAD en AMBOS calendarios:
+4. VERIFICACIÓN DE DISPONIBILIDAD en AMBOS calendarios:
    a) EST – AGENDA[X] – [ESTETICISTA] (que la esteticista esté libre)
-   b) RES – EQUIPO – [EQUIPO] (que el equipo esté libre)
+   b) RES – [RECURSO] (que el equipo/sala esté libre)
    Si cualquiera está ocupado → informar y ofrecer alternativas.
-4. DUAL-WRITE obligatorio al confirmar — llamar crear_cita DOS VECES:
+5. DUAL-WRITE obligatorio al confirmar — llamar crear_cita DOS VECES:
    - Primera vez: EST – AGENDA[X] – [ESTETICISTA]
-   - Segunda vez: RES – EQUIPO – [EQUIPO]
-5. NO preguntar por Dr. Dimas para estos servicios.
+   - Segunda vez: RES – [RECURSO] del servicio
+6. NO preguntar por Dr. Dimas para estos servicios.
 
-MAPA SERVICIO → EQUIPO:
-- Cámara Hiperbárica → RES – EQUIPO – CAMARA HIPERBARICA
-- Depilación Láser   → RES – EQUIPO – DEPILACION LASER
-- Hydrash            → RES – EQUIPO – HYDRASH
-- Tensamax           → RES – EQUIPO – TENSAMAX
-- Retraction         → RES – EQUIPO – RETRACTION
+MAPA SERVICIO → RECURSO:
+- Cámara Hiperbárica        → RES – EQUIPO – CAMARA HIPERBARICA
+- Depilación Láser          → RES – EQUIPO – DEPILACION LASER
+- Hydrash                   → RES – EQUIPO – HYDRASH
+- Tensamax                  → RES – EQUIPO – TENSAMAX
+- Postoperatorio / Control postop / Seguimiento postop → RES – SALA – POSTOPERATORIO
 
 MAPA ESTETICISTA → CALENDARIO:
 - Katherine → EST – AGENDA1 – KATHERINE
@@ -692,7 +698,7 @@ Esteticista : [nombre]
 Fecha       : [fecha]
 Hora        : [inicio] – [fin]
 Lugar       : 440 Clinic by Dr. Gio – Barranquilla
-Calendarios : EST – [esteticista] + RES – [equipo]
+Calendarios : EST – [esteticista] + RES – [recurso]
 ¿Confirmas? (Sí / No)`;
 
 
