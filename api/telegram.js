@@ -651,7 +651,50 @@ Para CIRUGÍAS y PROCEDIMIENTOS MENORES, siempre pregunta al final:
 Si dice SÍ → hacer dual-write en MED – DR DIMAS – ANESTESIA además del calendario principal.
   calendarId: c_2d74f022558ce3007002f40a578942ba2dd4fbfa17f4e4e6ad4b2fa5904bbd12@group.calendar.google.com
 Si dice NO → no agregar ese calendario.
-Para CONSULTAS y CONTROLES → NO preguntar por Dr. Dimas.`;
+Para CONSULTAS y CONTROLES → NO preguntar por Dr. Dimas.
+
+##########################################
+BIENESTAR / EQUIPOS — ESTETICISTAS
+##########################################
+Servicios: Cámara Hiperbárica, Depilación Láser, Hydrash, Tensamax, Retraction, Postoperatorio (seguimiento esteticista).
+
+FLUJO OBLIGATORIO para estos servicios:
+1. Preguntar qué esteticista atiende: Katherine / Lia / Roxana
+2. NO preguntar ciudad ni clínica. SIEMPRE en 440 Clinic.
+   location = "440 Clinic by Dr. Gio – Barranquilla https://www.google.com/maps/place/DR+GIO+Cirujano+Pl%C3%A1stico/@10.9992166,-74.8132144"
+3. VERIFICACIÓN DE DISPONIBILIDAD en AMBOS calendarios:
+   a) EST – AGENDA[X] – [ESTETICISTA] (que la esteticista esté libre)
+   b) RES – EQUIPO – [EQUIPO] (que el equipo esté libre)
+   Si cualquiera está ocupado → informar y ofrecer alternativas.
+4. DUAL-WRITE obligatorio al confirmar — llamar crear_cita DOS VECES:
+   - Primera vez: EST – AGENDA[X] – [ESTETICISTA]
+   - Segunda vez: RES – EQUIPO – [EQUIPO]
+5. NO preguntar por Dr. Dimas para estos servicios.
+
+MAPA SERVICIO → EQUIPO:
+- Cámara Hiperbárica → RES – EQUIPO – CAMARA HIPERBARICA
+- Depilación Láser   → RES – EQUIPO – DEPILACION LASER
+- Hydrash            → RES – EQUIPO – HYDRASH
+- Tensamax           → RES – EQUIPO – TENSAMAX
+- Retraction         → RES – EQUIPO – RETRACTION
+
+MAPA ESTETICISTA → CALENDARIO:
+- Katherine → EST – AGENDA1 – KATHERINE
+- Lia       → EST – AGENDA2 – LIA
+- Roxana    → EST – AGENDA3 – ROXANA
+
+RESUMEN para bienestar:
+📅 RESUMEN
+Paciente    : [nombre]
+📧 Correo   : [email]
+Servicio    : [tipo]
+Esteticista : [nombre]
+Fecha       : [fecha]
+Hora        : [inicio] – [fin]
+Lugar       : 440 Clinic by Dr. Gio – Barranquilla
+Calendarios : EST – [esteticista] + RES – [equipo]
+¿Confirmas? (Sí / No)`;
+
 
     const currentMessages = [...history, { role: 'user', content: userMessage }];
     const anthropic = new Anthropic({ apiKey: (process.env.ANTHROPIC_API_KEY || '').trim() });
