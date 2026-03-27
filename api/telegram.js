@@ -212,7 +212,15 @@ async function loadHistory(supabase, chatId) {
 }
 
 async function saveHistory(supabase, chatId, messages) {
-  const trimmed = messages.slice(-20);
+  let trimmed = messages.slice(-20);
+  // Si al recortar quedó un tool_result o tool_use huérfano al inicio, eliminarlo
+  // para evitar el error 400 "unexpected tool_use_id in tool_result blocks"
+  while (trimmed.length > 0) {
+    const first = trimmed[0];
+    const content = Array.isArray(first.content) ? first.content : [];
+    const hasOrphan = content.some(b => b.type === 'tool_result' || b.type === 'tool_use');
+    if (hasOrphan) { trimmed = trimmed.slice(1); } else { break; }
+  }
   try {
     await supabase
       .from('telegram_conversations')
