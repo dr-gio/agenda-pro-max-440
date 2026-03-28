@@ -23,6 +23,29 @@ const App: React.FC = () => {
     window.addEventListener('hashchange', handleHashChange);
     handleHashChange();
 
+    // SSO desde portal-440clinic
+    const pt = new URLSearchParams(window.location.search).get('pt');
+    if (pt) {
+      fetch(`https://portal-440clinic.vercel.app/api/sso?token=${pt}`)
+        .then(r => r.json())
+        .then(d => {
+          if (d.portal_rol && d.nombre) {
+            const role: 'admin' | 'viewer' = d.portal_rol === 'contabilidad' ? 'viewer' : 'admin';
+            const newSession: AuthSession = {
+              user: d.nombre,
+              staffId: `sso-${pt.slice(0, 8)}`,
+              role,
+              expiresAt: Date.now() + 1000 * 60 * 60 * 24 * 30,
+            };
+            setSession(newSession);
+            localStorage.setItem('clinic_session', JSON.stringify(newSession));
+            window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+          }
+        })
+        .catch(() => {/* fallback a login normal */});
+      return;
+    }
+
     // Check existing session in localStorage
     const savedSession = localStorage.getItem('clinic_session');
     if (savedSession) {
