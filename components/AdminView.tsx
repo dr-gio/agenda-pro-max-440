@@ -21,6 +21,11 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
   const [staffForm, setStaffForm] = useState({ nombre: '', pin: '', rol: 'colaborador' });
   const [staffError, setStaffError] = useState('');
   const [staffSaving, setStaffSaving] = useState(false);
+  const [editingStaff, setEditingStaff] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({ nombre: '', pin: '', rol: 'colaborador' });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [form, setForm] = useState<Partial<CalendarConfig>>({
     id: '', label: '', type: 'resource', active: true, showDetails: true, sort: 1, timezone: TIMEZONE, googleCalendarId: '', personalEmail: '', avatarUrl: ''
   });
@@ -146,6 +151,36 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
       headers: { 'Content-Type': 'application/json' },
       body: activo ? undefined : JSON.stringify({ activo: true }),
     });
+    await loadStaff();
+  };
+
+  const handleEditStaff = (s: any) => {
+    setEditingStaff(s);
+    setEditForm({ nombre: s.nombre, pin: '', rol: s.rol });
+    setEditError('');
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditSaving(true); setEditError('');
+    try {
+      const body: any = { rol: editForm.rol };
+      if (editForm.nombre.trim()) body.nombre = editForm.nombre.trim();
+      if (editForm.pin) body.pin = editForm.pin;
+      const res = await fetch(`/api/staff?id=${editingStaff.id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      const data = await res.json();
+      if (!res.ok) { setEditError(data.error || 'Error al guardar'); return; }
+      setEditingStaff(null);
+      await loadStaff();
+    } finally { setEditSaving(false); }
+  };
+
+  const handleDeleteStaff = async (id: string) => {
+    await fetch(`/api/staff?id=${id}`, { method: 'DELETE' });
+    setConfirmDelete(null);
     await loadStaff();
   };
 
@@ -783,12 +818,20 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
                           </span>
                         </td>
                         <td className="px-8 py-4 text-right">
-                          <button
-                            onClick={() => handleToggleStaff(s.id, s.activo)}
-                            className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors ${s.activo ? 'text-red-500 hover:bg-red-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
-                          >
-                            {s.activo ? 'Desactivar' : 'Activar'}
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleEditStaff(s)}
+                              className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg text-blue-600 hover:bg-blue-50 transition-colors"
+                            >Editar</button>
+                            <button
+                              onClick={() => handleToggleStaff(s.id, s.activo)}
+                              className={`text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg transition-colors ${s.activo ? 'text-amber-500 hover:bg-amber-50' : 'text-emerald-600 hover:bg-emerald-50'}`}
+                            >{s.activo ? 'Desactivar' : 'Activar'}</button>
+                            <button
+                              onClick={() => setConfirmDelete(s.id)}
+                              className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+                            >Eliminar</button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1022,6 +1065,80 @@ const AdminView: React.FC<AdminViewProps> = ({ session, onLogout }) => {
           )}
         </div>
       ) : null}
+    {/* ── MODAL EDITAR USUARIO ── */}
+    {editingStaff && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setEditingStaff(null)}>
+        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm mx-4" onClick={e => e.stopPropagation()}>
+          <h3 className="text-lg font-black text-slate-900 mb-1">Editar Usuario</h3>
+          <p className="text-xs text-slate-400 font-bold uppercase tracking-widest mb-6">{editingStaff.nombre}</p>
+          <form onSubmit={handleSaveEdit} className="space-y-4">
+            <div>
+              <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-1">Nombre</label>
+              <input
+                type="text" value={editForm.nombre}
+                onChange={e => setEditForm({ ...editForm, nombre: e.target.value })}
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-1">Nuevo PIN <span className="text-slate-300">(dejar vacío para no cambiar)</span></label>
+              <input
+                type="password" inputMode="numeric" maxLength={8}
+                value={editForm.pin}
+                onChange={e => setEditForm({ ...editForm, pin: e.target.value.replace(/\D/g, '') })}
+                placeholder="••••••"
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 tracking-widest text-center"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-black text-slate-500 uppercase tracking-widest mb-1">Rol</label>
+              <select
+                value={editForm.rol}
+                onChange={e => setEditForm({ ...editForm, rol: e.target.value })}
+                className="w-full px-4 py-3 border border-slate-200 rounded-xl text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="colaborador">Colaborador</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            {editError && <p className="text-red-500 text-xs font-bold">{editError}</p>}
+            <div className="flex gap-3 pt-2">
+              <button type="button" onClick={() => setEditingStaff(null)}
+                className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-500 text-sm font-black uppercase tracking-widest hover:bg-slate-50">
+                Cancelar
+              </button>
+              <button type="submit" disabled={editSaving}
+                className="flex-1 py-3 rounded-xl bg-slate-900 text-white text-sm font-black uppercase tracking-widest hover:bg-slate-800 disabled:opacity-50">
+                {editSaving ? 'Guardando...' : 'Guardar'}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    )}
+
+    {/* ── MODAL CONFIRMAR ELIMINAR ── */}
+    {confirmDelete && (
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setConfirmDelete(null)}>
+        <div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-sm mx-4 text-center" onClick={e => e.stopPropagation()}>
+          <div className="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4">
+            <span className="text-2xl">🗑️</span>
+          </div>
+          <h3 className="text-lg font-black text-slate-900 mb-2">¿Eliminar usuario?</h3>
+          <p className="text-sm text-slate-500 mb-6">Esta acción desactivará el usuario y no podrá ingresar al sistema.</p>
+          <div className="flex gap-3">
+            <button onClick={() => setConfirmDelete(null)}
+              className="flex-1 py-3 rounded-xl border border-slate-200 text-slate-500 text-sm font-black uppercase tracking-widest hover:bg-slate-50">
+              Cancelar
+            </button>
+            <button onClick={() => handleDeleteStaff(confirmDelete)}
+              className="flex-1 py-3 rounded-xl bg-red-500 text-white text-sm font-black uppercase tracking-widest hover:bg-red-600">
+              Eliminar
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </div >
   );
 };

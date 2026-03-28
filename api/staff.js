@@ -49,9 +49,10 @@ export default async function handler(req, res) {
   if (req.method === 'PUT') {
     const { id } = req.query;
     if (!id) return res.status(400).json({ error: 'Falta id' });
-    const { pin, rol, activo } = req.body || {};
+    const { nombre, pin, rol, activo } = req.body || {};
     const updates = { updated_at: new Date().toISOString() };
-    if (pin !== undefined) updates.pin_hash = hashPin(pin);
+    if (nombre !== undefined) updates.nombre = nombre.trim();
+    if (pin !== undefined && pin !== '') updates.pin_hash = hashPin(pin);
     if (rol !== undefined) updates.rol = rol;
     if (activo !== undefined) updates.activo = activo;
 
