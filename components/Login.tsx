@@ -16,18 +16,21 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch('/api/auth', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ nombre: nombre.trim(), pin }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data.error || 'Credenciales incorrectas');
+      // Validar contra portal_usuarios (fuente única de verdad)
+      const { supabase } = await import('../lib/supabaseClient');
+      const { data } = await supabase
+        .from('portal_usuarios')
+        .select('id, nombre, rol')
+        .ilike('nombre', nombre.trim())
+        .eq('pin', pin)
+        .eq('activo', true)
+        .maybeSingle();
+
+      if (!data) {
+        setError('Nombre o PIN incorrecto');
         return;
       }
-      // rol en la DB es 'admin' o 'colaborador' → mapeamos a 'admin' | 'viewer'
-      const role: 'admin' | 'viewer' = data.rol === 'admin' ? 'admin' : 'viewer';
+      const role: 'admin' | 'viewer' = data.rol === 'contabilidad' ? 'viewer' : 'admin';
       onLogin(data.nombre, role, data.id);
     } catch {
       setError('Error de conexión. Intenta nuevamente.');
